@@ -1,12 +1,12 @@
 rules_version = '2';
 // Reglas de seguridad de ZendoApp.
-// Cambiá TU_EMAIL_DE_PROFE@ejemplo.com por tu email de profe (el mismo de config.js).
+// Cambiá merdugan99@gmail.com por tu email de profe (el mismo de config.js).
 service cloud.firestore {
   match /databases/{database}/documents {
 
     function isAdmin() {
       return request.auth != null
-        && request.auth.token.email == 'TU_EMAIL_DE_PROFE@ejemplo.com';
+        && request.auth.token.email == 'merdugan99@gmail.com';
     }
     function signedIn() { return request.auth != null; }
 
