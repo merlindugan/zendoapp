@@ -196,11 +196,30 @@ button{cursor:pointer;border:0;background:none}
 .spots i.p{border-color:var(--gold);background:repeating-linear-gradient(135deg,var(--gold) 0 2px,transparent 2px 5px)}
 
 /* alert tiles */
+.trow{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
+.trow>.btn{flex:none;width:34px;padding:0}
+.trow:last-child{border-bottom:0}
+.tt{display:flex;flex-direction:column;flex:none;line-height:1}
+.tt .h3{font-size:24px}
+.tt small{font-family:var(--fm);font-size:10px;font-weight:700;color:var(--dim);white-space:nowrap;margin-top:3px}
+.dsel{display:flex;gap:3px;flex:1;min-width:0}
+.dsel button{flex:1;min-width:0;padding:0;height:34px;border:2px solid var(--line);font-family:var(--fd);font-weight:900;font-size:15px;color:var(--dim)}
+.dsel button.on{background:var(--gold);border-color:var(--gold);color:var(--goldink)}
+.dsel.big button{height:40px;font-size:16px}
 .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .markcard{display:flex;flex-direction:column;gap:10px;padding:16px 0;border-bottom:1px solid var(--line)}
 .markcard:last-child{border-bottom:0}
 .mmid{display:flex;gap:8px;flex-wrap:wrap}
 .mbtns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.ckcard{border:2px solid var(--line);padding:14px;display:flex;flex-direction:column;gap:12px}
+.ckcard:first-of-type{border-color:var(--bone)}
+.ckh{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.ckgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px 8px}
+.ckc{min-width:0}
+.ckn{font-family:var(--fm);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);line-height:1.2}
+.ckv{font-family:var(--fd);font-weight:900;font-size:28px;line-height:1;margin-top:3px}
+.ckv small{font-family:var(--fm);font-size:10px;font-weight:700;color:var(--dim);margin-left:3px}
+.ckd{font-family:var(--fm);font-size:11px;font-weight:700;color:var(--gold);margin-top:2px}
 .ptabs{border-bottom:3px solid var(--bone);padding-bottom:10px}
 .tile{border:3px solid var(--line);padding:10px;text-align:left;display:flex;flex-direction:column;gap:6px;min-width:0}
 .tile .n{font-family:var(--fd);font-weight:900;font-size:46px;line-height:.8}
@@ -286,6 +305,9 @@ const MON=['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DI
 const MONL=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
 const KEY='zendoapp-demo-v3';
 const STATS=[['pot','Potencia'],['vel','Velocidad'],['tec','Técnica'],['def','Defensa'],['fue','Fuerza'],['car','Cardio']];
+const STATS_F=[['pot','Potencia'],['vel','Velocidad'],['agi','Agilidad'],['coo','Coordinación'],['fue','Fuerza'],['car','Cardio']];
+const statsOf=st=>isCombat(st)?STATS:STATS_F;
+const CHK=[['peso','Peso','kg'],['bicR','Bíceps relajado','cm'],['bicC','Bíceps contraído','cm'],['cuad','Cuádriceps','cm'],['cint','Cintura baja','cm'],['gem','Gemelos','cm'],['homb','Hombros','cm'],['glut','Glúteos','cm'],['ante','Antebrazo','cm']];
 const WD=[1,2,3,4,5,6,0];
 const RANGOS=['A+','A','A-','B+','B','B-','C+','C','C-'];
 const isCombat=st=>st.disc==='Boxeo'||st.disc==='MMA'; // orden lunes→domingo
@@ -343,10 +365,11 @@ function seed(){
     const weeks=emptyWeeks();
     weeks.forEach((w,wi)=>{const src=f.plan[wi]||f.plan[f.plan.length-1];[1,2,3,4,5,6].forEach((d,k)=>{w[d]=[src[k%src.length]]})});
     const ex=extra[i];
-    const st={id,nombre:f.n,apellido:f.a,disc:f.disc,nac:ex[0],peso:ex[1],stats:Object.fromEntries(STATS.map(([k],j)=>[k,ex[2][j]])),
+    const st={id,nombre:f.n,apellido:f.a,disc:f.disc,nac:ex[0],peso:ex[1],stats:Object.fromEntries([...STATS,['agi'],['coo']].map(([k],j)=>[k,ex[2][j%6]])),
       pack:{size:f.size,start},base:f.base,baseSp:baseSp[i],rango:['','B+','A-','','C+','A','','C'][i]||null,plan:{weeks,repeat:true,month:ym},checks:[],
       notes:{},records:f.rec.map(r=>({id:nid(),ej:r[0],marca:r[1],fecha:add(TODAY,r[2])}))};
-    if(i<3)st.checks.push({id:nid(),fecha:add(TODAY,-(10+i*4)),notas:'Chequeo de ejemplo. Los campos se definen más adelante.'});
+    if(i<3){st.checks.push({id:nid(),fecha:add(TODAY,-40),peso:ex[1]+1.2,bicR:31,bicC:33.5,cuad:55,cint:80,gem:36,homb:108,glut:96,ante:26.5});
+      st.checks.push({id:nid(),fecha:add(TODAY,-(8+i*3)),peso:ex[1],bicR:31.5,bicC:34.5,cuad:56,cint:78.5,gem:36.5,homb:109,glut:97})}
     D.students.push(st);
     D.pays.push({id:nid(),sid:id,date:start,size:f.size,monto:cfg.precios[f.size]});
     if(f.prev)D.pays.push({id:nid(),sid:id,date:add(start,-30),size:f.size,monto:cfg.precios[f.size]});
@@ -492,9 +515,11 @@ function planFor(st,date){
   const w=pl.weeks[weekIdx(date)];return (w&&w[P(date).getDay()])||[];
 }
 const slotRes=(date,h)=>D.res.filter(r=>r.date===date&&r.h===h&&r.status!=='rech');
+const ocKey=(d,h)=>d+'|'+h;
+const isOcc=(d,h)=>!!(C().ocupados||{})[ocKey(d,h)];
 function slotsFor(date){
-  if(!isOpen(date))return[];
-  return C().turnos.map(t=>{const rs=slotRes(date,t.h);const ok=rs.filter(r=>r.status==='ok').length;const pend=rs.filter(r=>r.status==='pend').length;return{...t,ok,pend,left:C().cupo-ok,rs}});
+  if(!isOpen(date))return[];const dow=P(date).getDay();
+  return C().turnos.filter(t=>!t.dias||t.dias.includes(dow)).map(t=>{const rs=slotRes(date,t.h);const ok=rs.filter(r=>r.status==='ok').length;const pend=rs.filter(r=>r.status==='pend').length;const occ=isOcc(date,t.h);return{...t,ok,pend,occ,left:occ?0:C().cupo-ok,rs}});
 }
 const ended=r=>r.date<TODAY||(r.date===TODAY&&hm(r.h)+durOf(r.h)<=nowMin());
 const started=(date,h)=>date<TODAY||(date===TODAY&&hm(h)<=nowMin());
@@ -531,7 +556,7 @@ function pointsBlock(st){
   <div class="eyebrow">Altura = cuánto entrenó cada área comparada con las otras · % del total de puntos</div>`;
 }
 function radar(st){
-  const s=st.stats||{};const cx=170,cy=150,R=108,n=STATS.length;
+  const s=st.stats||{};const STATS=statsOf(st);const cx=170,cy=150,R=108,n=STATS.length;
   const pt=(i,v)=>{const a=-Math.PI/2+i*2*Math.PI/n;return[cx+Math.cos(a)*R*v/10,cy+Math.sin(a)*R*v/10]};
   let g='';[2,4,6,8,10].forEach(v=>{g+=`<polygon points="${STATS.map((_,i)=>pt(i,v).join(',')).join(' ')}" fill="none" stroke="var(--line)" stroke-width="${v===10?2:1}"/>`});
   STATS.forEach((_,i)=>{const[x,y]=pt(i,10);g+=`<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="var(--line)" stroke-width="1"/>`});
@@ -575,6 +600,19 @@ function sparBlock(st){
   const last=D.sessions.filter(s=>s.sid===st.id&&s.status==='P'&&s.sp).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
   return `<div class="statrow"><div><div class="h2" style="font-size:56px;color:var(--gold)">${sparrings(st)}</div><div class="eyebrow">Rounds en total</div></div><div><div class="h2">${sparrings(st,ym+'-01',ym+'-31')}</div><div class="eyebrow">Este mes</div></div><div><div class="h2">${sparrings(st,p.start,add(p.end,-1))}</div><div class="eyebrow">Este pack</div></div></div>
   ${last.length?`<div class="rows">${last.map(s=>`<div class="row"><div class="grow"><div class="t">${fdw(s.date)}</div><div class="s">${s.h} · ${AN[s.area].toUpperCase()}</div></div><div class="h3 gold">${s.sp} RDS</div></div>`).join('')}</div>`:'<div class="empty-s">Todavía no hay rounds de sparring cargados.</div>'}`;
+}
+const fnum=v=>(Math.round(v*10)/10).toLocaleString('es-AR');
+function checksList(st,admin){
+  const list=[...(st.checks||[])].sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  if(!list.length)return `<div class="empty-s">${admin?'Todavía no hay chequeos. Cargá el primero con el botón de abajo.':'Todavía no hay chequeos cargados.'}</div>`;
+  return list.map((c,i)=>{
+    const prevOf=k=>{for(let j=i+1;j<list.length;j++){const v=list[j][k];if(v!=null&&v!=='')return v}return null};
+    const cells=CHK.filter(([k])=>c[k]!=null&&c[k]!=='').map(([k,n,u])=>{const pv=prevOf(k);const d=pv==null?null:Math.round((c[k]-pv)*10)/10;
+      return `<div class="ckc"><div class="ckn">${n}</div><div class="ckv">${fnum(c[k])}<small>${u}</small></div>${d?`<div class="ckd">${d>0?'▲ +':'▼ '}${fnum(d)}</div>`:''}</div>`}).join('');
+    return `<div class="ckcard"><div class="ckh"><div><div class="h3">${fd(c.fecha)} ${c.fecha.slice(0,4)}</div>${i===0?'<div class="eyebrow">Último</div>':''}</div>
+      ${admin?`<div class="btns"><button class="btn s" data-act="editCheck" data-sid="${st.id}" data-id="${c.id}">Editar</button><button class="btn s x" data-act="delCheck" data-sid="${st.id}" data-id="${c.id}" aria-label="Borrar chequeo">✕</button></div>`:''}</div>
+      ${cells?`<div class="ckgrid">${cells}</div>`:'<div class="dim" style="font-size:14px">Sin medidas cargadas.</div>'}
+      ${c.notas?`<div class="dim" style="font-size:14px;white-space:pre-wrap">${esc(c.notas)}</div>`:''}</div>`}).join('');
 }
 function resStatusPill(r){
   if(r.status==='pend')return '<span class="pill w">PENDIENTE</span>';
@@ -634,10 +672,11 @@ function vTurnos(st){
     let action;
     if(mine)action=resStatusPill(mine);
     else if(past)action='<span class="pill">PASÓ</span>';
+    else if(x.occ)action='<span class="pill r">OCUPADO</span>';
     else if(x.left<=0)action='<span class="pill r">LLENO</span>';
     else action=`<button class="btn s g" data-act="request" data-d="${sel}" data-h="${x.h}">Solicitar</button>`;
     let sp='';for(let i=0;i<C().cupo;i++)sp+=`<i class="${i<x.ok?'f':(i<x.ok+x.pend?'p':'')}"></i>`;
-    return `<div class="slot" style="${past?'opacity:.4':''}"><div class="hr">${x.h}<small>${x.d} MIN · HASTA ${mh(hm(x.h)+x.d)}</small></div><div><div class="spots">${sp}</div><div class="s mono dim" style="font-size:11px;margin-top:4px">${Math.max(0,x.left)} LIBRES DE ${C().cupo}</div></div><div>${action}</div></div>`}).join('');
+    return `<div class="slot" style="${past?'opacity:.4':''}"><div class="hr">${x.h}<small>${x.d} MIN · HASTA ${mh((hm(x.h)+x.d)%1440)}</small></div><div>${x.occ?'':`<div class="spots">${sp}</div><div class="s mono dim" style="font-size:11px;margin-top:4px">${Math.max(0,x.left)} LIBRES DE ${C().cupo}</div>`}</div><div>${action}</div></div>`}).join('');
   return `<div class="stack">
   <div><div class="eyebrow">Horarios libres</div><h1 class="h1">Turnos</h1><div class="meta" style="margin-top:6px"><span>PODÉS PEDIR HASTA ${C().anticipacion} DÍAS ANTES · HASTA EL ${fd(lim)}</span></div></div>
   ${p.expired||p.rem<=0?`<div class="slab" style="border-color:var(--alert)"><div class="h3" style="color:var(--alert)">${p.expired?'Tu pack está vencido':'No te quedan sesiones'}</div><div class="dim" style="margin-top:4px">Podés mandar la solicitud igual. El profe la confirma cuando renueves.</div></div>`:''}
@@ -661,6 +700,7 @@ function vYo(st){
   <section class="sec"><div class="sechead"><h2 class="h3">Stats</h2><span class="eyebrow">1 a 10 · las pone el profe</span></div>${radar(st)}</section>
   ${isCombat(st)?`<section class="sec"><div class="sechead"><h2 class="h3">Rounds de sparring</h2></div>${sparBlock(st)}</section>`:''}
   <section class="sec"><div class="sechead"><h2 class="h3">Récords</h2><span class="eyebrow">Ejercicio · marca</span></div>${recordsList(st,false)}</section>
+  <section class="sec"><div class="sechead"><h2 class="h3">Chequeos físicos</h2><span class="eyebrow">▲▼ vs. el anterior</span></div>${checksList(st,false)}</section>
   </div>`;
 }
 
@@ -740,7 +780,7 @@ function vPanel(){
 `:''}
 
   <section class="sec" id="p-hoy"><div class="sechead"><h2 class="h3">Hoy · ${fdw(TODAY)}</h2><button class="btn s" data-act="goAgenda" data-d="${TODAY}">Ver agenda</button></div>
-  ${todaySlots.length?`<div class="rows">${todaySlots.map(x=>`<div class="row"><div class="h3" style="width:70px">${x.h}</div><div class="grow s">${x.rs.filter(r=>r.status==='ok').map(r=>esc(stu(r.sid).nombre)).join(', ')||'—'}</div><span class="pill ${x.ok?'b':''}">${x.ok}/${C().cupo}</span></div>`).join('')}</div>`:'<div class="empty-s">Hoy el gimnasio no abre.</div>'}
+  ${todaySlots.length?`<div class="rows">${todaySlots.map(x=>`<div class="row"><div class="h3" style="width:70px">${x.h}</div><div class="grow s">${x.rs.filter(r=>r.status==='ok').map(r=>esc(stu(r.sid).nombre)).join(', ')||'—'}</div>${x.occ?'<span class="pill r">OCUPADO</span>':`<span class="pill ${x.ok?'b':''}">${x.ok}/${C().cupo}</span>`}</div>`).join('')}</div>`:'<div class="empty-s">Hoy el gimnasio no abre.</div>'}
   </section>
 
   <section class="sec"><div class="sechead"><h2 class="h3">Pagos del mes</h2><button class="btn s" data-act="togPays">${U.showPays?'Ocultar':'Ver '+pays.length}</button></div>
@@ -754,7 +794,7 @@ function vAgenda(){
     return{cls:(s===U.agDay?'sel ':'')+(s===TODAY?'today ':'')+(pe?'has':''),act:'agDay',k:ok+(pe?' +'+pe+'?':'')}});
   const s=U.agDay;
   const slots=slotsFor(s).map(x=>{const list=x.rs.map(r=>{const st=stu(r.sid);return `<div class="row" style="padding:8px 0"><div class="grow"><div class="t" style="font-size:14px">${esc(fullName(st))}</div></div>${resStatusPill(r)}${r.status==='pend'?`<button class="btn s g" data-act="approve" data-id="${r.id}" ${x.left<=0?'disabled':''}>OK</button><button class="btn s x" data-act="reject" data-id="${r.id}">✕</button>`:(!sessOfRes(r)?`<button class="btn s x" data-act="delRes" data-id="${r.id}" aria-label="Quitar">✕</button>`:'')}</div>`}).join('');
-    return `<div class="slab dark" style="padding:12px 14px;display:flex;flex-direction:column;gap:6px"><div style="display:flex;align-items:center;gap:10px"><div class="h2" style="font-size:30px;flex:1">${x.h}<span class="eyebrow" style="margin-left:8px">${x.d} MIN</span></div><span class="pill ${x.left<=0?'r':x.ok?'b':''}">${x.ok}/${C().cupo}</span><button class="btn s" data-act="addToSlot" data-d="${s}" data-h="${x.h}" ${x.left<=0?'disabled':''}>+ Alumno</button></div>${list?`<div class="rows">${list}</div>`:''}</div>`}).join('');
+    return `<div class="slab dark" style="padding:12px 14px;display:flex;flex-direction:column;gap:6px"><div style="display:flex;align-items:center;gap:10px"><div class="h2" style="font-size:30px;flex:1">${x.h}<span class="eyebrow" style="margin-left:8px">${x.d} MIN</span></div>${x.occ?'<span class="pill r">OCUPADO</span>':`<span class="pill ${x.left<=0?'r':x.ok?'b':''}">${x.ok}/${C().cupo}</span>`}<button class="btn s ${x.occ?'g':'x'}" data-act="tgOcc" data-d="${s}" data-h="${x.h}">${x.occ?'Liberar':'Ocupado'}</button><button class="btn s" data-act="addToSlot" data-d="${s}" data-h="${x.h}" ${x.left<=0&&!x.occ?'disabled':''}>+ Alumno</button></div>${list?`<div class="rows">${list}</div>`:''}</div>`}).join('');
   return `<div class="stack">
   <div><div class="eyebrow">Agenda completa</div><h1 class="h1">Agenda</h1></div>
   <section class="sec">
@@ -818,7 +858,7 @@ function vProfile(st){
     <div class="seg">${RANGOS.map(r=>`<button class="${st.rango===r?'on':''}" data-act="setRango" data-sid="${st.id}" data-r="${r}" style="flex:1 0 auto">${r}</button>`).join('')}</div></section>`:''}
   <button class="btn x full" data-act="delStudent" data-sid="${st.id}">Eliminar alumno</button>`,
     stats:()=>`  <section class="sec"><div class="sechead"><h2 class="h3">Stats</h2><span class="eyebrow">1 a 10</span></div>${radar(st)}
-    <div class="statgrid">${STATS.map(([k,n])=>`<div class="stp"><span class="nm">${n.toUpperCase()}</span><button data-act="stat" data-sid="${st.id}" data-k="${k}" data-v="-1" aria-label="Bajar ${n}">−</button><span class="v">${(st.stats||{})[k]||0}</span><button data-act="stat" data-sid="${st.id}" data-k="${k}" data-v="1" aria-label="Subir ${n}">+</button></div>`).join('')}</div></section>
+    <div class="statgrid">${statsOf(st).map(([k,n])=>`<div class="stp"><span class="nm">${n.toUpperCase()}</span><button data-act="stat" data-sid="${st.id}" data-k="${k}" data-v="-1" aria-label="Bajar ${n}">−</button><span class="v">${(st.stats||{})[k]||0}</span><button data-act="stat" data-sid="${st.id}" data-k="${k}" data-v="1" aria-label="Subir ${n}">+</button></div>`).join('')}</div></section>
   <section class="sec"><div class="sechead"><h2 class="h3">Prioridad por área</h2><span class="eyebrow">+${PTS} por presente</span></div>${pointsBlock(st)}</section>
   ${isCombat(st)?`<section class="sec"><div class="sechead"><h2 class="h3">Rounds de sparring</h2></div>${sparBlock(st)}</section>`:''}
   <section class="sec"><div class="sechead"><h2 class="h3">Récords</h2></div>${recordsList(st,true)}
@@ -829,12 +869,9 @@ function vProfile(st){
     asis:()=>`  <section class="sec"><div class="sechead"><h2 class="h3">Asistencia</h2><span class="eyebrow">Últimas 4 semanas</span></div>${attBlock(st)}</section>
   <section class="sec"><div class="sechead"><h2 class="h3">Sesiones del pack</h2><span class="eyebrow">${p.used.length}/${p.size} ${isCombat(st)?' · RDS = rounds de sparring':''}</span></div>${usedList(st,p,true)}</section>
 `,
-    chk:()=>`  <section class="sec"><div class="sechead"><h2 class="h3">Chequeos físicos</h2><span class="demo-tag">CAMPOS A DEFINIR</span></div>
-    ${(st.checks||[]).length?`<div class="rows">${[...st.checks].sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(c=>`<div class="row" style="align-items:flex-start"><div style="width:74px;flex:none"><div class="h3">${MON[P(c.fecha).getMonth()]}</div><div class="s mono dim" style="font-size:11px">${fd(c.fecha)} ${c.fecha.slice(0,4)}</div></div><div class="grow" style="white-space:pre-wrap">${esc(c.notas)}</div><button class="btn s x" data-act="delCheck" data-sid="${st.id}" data-id="${c.id}" aria-label="Borrar chequeo">✕</button></div>`).join('')}</div>`:'<div class="empty-s">Todavía no hay chequeos cargados.</div>'}
-    ${(st.checks||[]).some(c=>c.fecha.slice(0,7)===ym)?'':`<div class="pill w" style="align-self:flex-start">FALTA EL CHEQUEO DE ${MONL[P(TODAY).getMonth()]}</div>`}
-    <div class="grid2"><div class="field"><label for="ck-f">Fecha</label><input class="inp mono" type="date" id="ck-f" value="${TODAY}"></div></div>
-    <div class="field"><label for="ck-n">Anotaciones</label><textarea class="inp" id="ck-n" placeholder="Por ahora texto libre. Después definimos los campos."></textarea></div>
-    <button class="btn" data-act="addCheck" data-sid="${st.id}">+ Agregar chequeo</button>
+    chk:()=>`  <section class="sec"><div class="sechead"><h2 class="h3">Chequeos físicos</h2><span class="eyebrow">▲▼ = cambio vs. el anterior</span></div>
+    <button class="btn g full" data-act="newCheck" data-sid="${st.id}">+ Nuevo chequeo</button>
+    ${checksList(st,true)}
   </section>
 `,
     pagos:()=>`  <section class="sec"><div class="sechead"><h2 class="h3">Pagos</h2></div>${pays.length?`<div class="rows">${pays.map(x=>`<div class="row"><div class="grow"><div class="t">${fd(x.date)} ${x.date.slice(0,4)}</div><div class="s">PACK ${x.size}</div></div><div class="h3">${money(x.monto)}</div></div>`).join('')}</div>`:'<div class="empty-s">Sin pagos registrados.</div>'}</section>
@@ -860,10 +897,16 @@ function vAjustes(){
   <section class="sec"><div class="sechead"><h2 class="h3">Días abiertos</h2></div>
     <div class="seg">${[1,2,3,4,5,6,0].map(d=>`<button class="${c.dias.includes(d)?'on':''}" data-act="tgDia" data-d="${d}">${DOW[d]}</button>`).join('')}</div>
   </section>
-  <section class="sec"><div class="sechead"><h2 class="h3">Turnos del día</h2><span class="eyebrow">08:00–20:00 · 50 a 90 min</span></div>
-    <div class="rows">${c.turnos.map((t,i)=>`<div class="row"><div class="h3" style="width:76px">${t.h}</div><div class="grow s">${t.d} MIN · HASTA ${mh(hm(t.h)+t.d)}</div><button class="btn s x" data-act="delTurno" data-i="${i}" aria-label="Borrar turno">✕</button></div>`).join('')}</div>
-    <div class="grid2"><div class="field"><label for="t-h">Inicio</label><input class="inp mono" type="time" id="t-h" min="08:00" max="19:10" value="12:40"></div><div class="field"><label for="t-d">Duración (min)</label><input class="inp mono" type="number" id="t-d" min="50" max="90" step="5" value="60"></div></div>
-    <button class="btn" data-act="addTurno">+ Agregar turno</button>
+  <section class="sec"><div class="sechead"><h2 class="h3">Turnos</h2><span class="eyebrow">Tocá los días de cada turno</span></div>
+    <div class="rows">${c.turnos.map((t,i)=>`<div class="trow"><div class="tt"><span class="h3">${t.h}</span><small>${t.d}′ · ${mh((hm(t.h)+t.d)%1440)}</small></div>
+      <div class="dsel">${WD.map(d=>`<button class="${(!t.dias||t.dias.includes(d))?'on':''}" data-act="tgTDia" data-i="${i}" data-d="${d}" aria-label="${DOW[d]}">${DOW[d][0]}</button>`).join('')}</div>
+      <button class="btn s x" data-act="delTurno" data-i="${i}" aria-label="Borrar turno">✕</button></div>`).join('')||'<div class="empty-s">No hay turnos. Agregá el primero abajo.</div>'}</div>
+    <div class="slab dark" style="display:flex;flex-direction:column;gap:10px;padding:14px">
+      <div class="h3">Nuevo turno</div>
+      <div class="grid2"><div class="field"><label for="t-h">Inicio</label><input class="inp mono" type="time" id="t-h" value="12:40"></div><div class="field"><label for="t-d">Duración (min)</label><input class="inp mono" type="number" id="t-d" min="1" step="5" value="60"></div></div>
+      <div class="field"><label>Días</label><div class="dsel big">${WD.map(d=>`<button class="${(U.newTDias||c.dias).includes(d)?'on':''}" data-act="tgNewTDia" data-d="${d}">${DOW[d]}</button>`).join('')}</div></div>
+      <button class="btn g" data-act="addTurno">+ Agregar turno</button>
+    </div>
   </section>
   <section class="sec"><div class="sechead"><h2 class="h3">Precios de packs</h2><span class="demo-tag">EJEMPLO</span></div>
     <div class="grid2">${[8,12,16].map(n=>`<div class="field"><label for="pr-${n}">Pack ${n}</label><input class="inp mono" type="number" id="pr-${n}" data-chg="precio" data-n="${n}" value="${c.precios[n]}"></div>`).join('')}</div>
@@ -915,6 +958,12 @@ function sheetHTML(){
     <div class="grid2"><div class="field"><label for="ns-m">Monto pagado</label><input class="inp mono" type="number" id="ns-m" value="${C().precios[sh.size||12]}"></div><div class="field"><label for="ns-f">Fecha de pago</label><input class="inp mono" type="date" id="ns-f" value="${TODAY}"></div></div>
     <div class="eyebrow">La clave del alumno es nombre + apellido, todo junto y en minúscula.</div>
     <button class="btn g full" data-act="saveNew">Crear alumno</button><button class="btn x full" data-act="closeSheet">Cancelar</button>`}
+  if(sh.type==='check'){const st=stu(sh.sid);const c=sh.cid?(st.checks||[]).find(x=>x.id===sh.cid)||{}:{};
+    body=`<div class="eyebrow">${esc(fullName(st))}</div><h2 class="h2">${sh.cid?'Editar chequeo':'Nuevo chequeo'}</h2>
+    <div class="field"><label for="ck-f">Fecha</label><input class="inp mono" type="date" id="ck-f" value="${c.fecha||TODAY}"></div>
+    <div class="grid2">${CHK.map(([k,n,u])=>`<div class="field"><label for="ck-${k}">${n} (${u})</label><input class="inp mono" type="number" inputmode="decimal" step="0.1" id="ck-${k}" value="${c[k]??''}"></div>`).join('')}</div>
+    <div class="eyebrow">Podés dejar campos vacíos.</div>
+    <button class="btn g full" data-act="saveCheck">Guardar</button><button class="btn x full" data-act="closeSheet">Cancelar</button>`}
   if(sh.type==='edit'){const st=stu(sh.sid);const opts=['Preparación física','Boxeo','MMA'];
     body=`<h2 class="h2">Editar datos</h2>
     <div class="grid2"><div class="field"><label for="ed-n">Nombre</label><input class="inp" id="ed-n" value="${esc(st.nombre)}"></div><div class="field"><label for="ed-a">Apellido</label><input class="inp" id="ed-a" value="${esc(st.apellido)}"></div></div>
@@ -1015,7 +1064,7 @@ const A={
   request(e){const st=stu(U.sid);const d=e.dataset.d,h=e.dataset.h;
     if(D.res.some(r=>r.sid===st.id&&r.date===d&&r.h===h&&r.status!=='rech'))return;
     D.res.push({id:nid(),sid:st.id,date:d,h,status:'pend',at:Date.now()});rerender();toast('Solicitud enviada. El profe tiene que confirmarla.')},
-  approve(e){const r=D.res.find(x=>x.id===e.dataset.id);const x=slotsFor(r.date).find(s=>s.h===r.h);if(x&&x.left<=0)return toast('Ese turno ya está lleno.');r.status='ok';rerender();toast('Turno confirmado para '+stu(r.sid).nombre+'.')},
+  approve(e){const r=D.res.find(x=>x.id===e.dataset.id);const x=slotsFor(r.date).find(s=>s.h===r.h);if(x&&x.left<=0)return toast(x.occ?'Ese horario está marcado como ocupado.':'Ese turno ya está lleno.');r.status='ok';rerender();toast('Turno confirmado para '+stu(r.sid).nombre+'.')},
   reject(e){const r=D.res.find(x=>x.id===e.dataset.id);r.status='rech';rerender();toast('Solicitud rechazada.')},
   mark(e){const r=D.res.find(x=>x.id===e.dataset.id);const st=e.dataset.st;const sel=document.getElementById('ar-'+r.id);const area=sel?sel.value:null;
     const sp=st==='P'?((U.spDraft||{})[r.id]||0):0;D.sessions.push({id:nid(),sid:r.sid,date:r.date,h:r.h,area:st==='P'?area:null,sp,status:st,resId:r.id});if(U.spDraft)delete U.spDraft[r.id];rerender();toast(st==='P'?stu(r.sid).nombre+': presente · +'+PTS+' '+AN[area]+(sp?' · '+sp+' rounds':''):stu(r.sid).nombre+': ausente')},
@@ -1044,8 +1093,13 @@ const A={
   weekNext(){const w=U.planWeek;U.sheet={type:'confirm',title:'¿Copiar semana '+(w+1)+' a la semana '+(w+2)+'?',text:'Se reemplaza la semana '+(w+2)+' de todos los alumnos con lo que tiene la semana '+(w+1)+'.',yes:'Copiar',run:'weekNextGo'};rerender()},
   planOf(e){U.tab='planes';U.prof=null;U.planMonth=TODAY.slice(0,7);U.planWeek=weekIdx(TODAY);go()},
   stat(e){const st=stu(e.dataset.sid);st.stats=st.stats||{};const k=e.dataset.k;st.stats[k]=Math.max(1,Math.min(10,(st.stats[k]||0)+(+e.dataset.v)));rerender()},
-  addCheck(e){const st=stu(e.dataset.sid);const f=document.getElementById('ck-f').value||TODAY;const n=document.getElementById('ck-n').value.trim();if(!n)return toast('Escribí las anotaciones del chequeo.');
-    st.checks=st.checks||[];st.checks.push({id:nid(),fecha:f,notas:n});rerender();toast('Chequeo guardado.')},
+  newCheck(e){U.sheet={type:'check',sid:e.dataset.sid,cid:null};rerender()},
+  editCheck(e){U.sheet={type:'check',sid:e.dataset.sid,cid:e.dataset.id};rerender()},
+  saveCheck(){const sh=U.sheet;const st=stu(sh.sid);st.checks=st.checks||[];
+    const rec={id:sh.cid||nid(),fecha:document.getElementById('ck-f').value||TODAY};
+    CHK.forEach(([k])=>{const v=parseFloat(String(document.getElementById('ck-'+k).value).replace(',','.'));if(!isNaN(v))rec[k]=v});
+    const old=sh.cid?st.checks.find(c=>c.id===sh.cid):null;if(old&&old.notas)rec.notas=old.notas;
+    st.checks=st.checks.filter(c=>c.id!==rec.id);st.checks.push(rec);U.sheet=null;rerender();toast(sh.cid?'Chequeo actualizado.':'Chequeo guardado.')},
   delCheck(e){const st=stu(e.dataset.sid);st.checks=st.checks.filter(c=>c.id!==e.dataset.id);rerender()},
   editStudent(e){U.sheet={type:'edit',sid:e.dataset.sid};rerender()},
   saveEdit(){const st=stu(U.sheet.sid);const n=document.getElementById('ed-n').value.trim(),a=document.getElementById('ed-a').value.trim();if(!n||!a)return toast('Falta nombre o apellido.');
@@ -1076,7 +1130,7 @@ const A={
   saveNew(){const n=document.getElementById('ns-n').value.trim(),a=document.getElementById('ns-a').value.trim();if(!n||!a)return toast('Falta nombre o apellido.');
     if(D.students.some(s=>norm(s.nombre+s.apellido)===norm(n+a)))return toast('Ya existe un alumno con ese nombre y apellido.');
     const size=U.sheet.size||12;const d=document.getElementById('ns-f').value||TODAY;const id=nid();
-    D.students.push({id,nombre:n,apellido:a,disc:document.getElementById('ns-d').value,nac:document.getElementById('ns-b').value||null,peso:parseFloat(document.getElementById('ns-p').value)||null,stats:Object.fromEntries(STATS.map(([k])=>[k,5])),checks:[],pack:{size,start:d},base:{},plan:{weeks:emptyWeeks(),repeat:true,month:TODAY.slice(0,7)},notes:{},records:[]});
+    D.students.push({id,nombre:n,apellido:a,disc:document.getElementById('ns-d').value,nac:document.getElementById('ns-b').value||null,peso:parseFloat(document.getElementById('ns-p').value)||null,stats:Object.fromEntries([...STATS,...STATS_F].map(([k])=>[k,5])),checks:[],pack:{size,start:d},base:{},plan:{weeks:emptyWeeks(),repeat:true,month:TODAY.slice(0,7)},notes:{},records:[]});
     D.pays.push({id:nid(),sid:id,date:d,size,monto:+document.getElementById('ns-m').value||0});U.sheet=null;U.prof=id;go();toast('Alumno creado. Clave: '+norm(n+a))},
   addRec(e){const ej=document.getElementById('rec-ej').value.trim(),mk=document.getElementById('rec-mk').value.trim();if(!ej||!mk)return toast('Completá ejercicio y marca.');
     stu(e.dataset.sid).records.push({id:nid(),ej,marca:mk,fecha:TODAY});rerender();toast('Récord guardado.')},
@@ -1088,11 +1142,18 @@ const A={
   tgAus(){C().ausenteDescuenta=!C().ausenteDescuenta;rerender()},
   tgDia(e){const d=+e.dataset.d;const a=C().dias;const i=a.indexOf(d);i>=0?a.splice(i,1):a.push(d);rerender()},
   delTurno(e){C().turnos.splice(+e.dataset.i,1);rerender()},
-  addTurno(){const h=document.getElementById('t-h').value;const d=+document.getElementById('t-d').value;
-    if(!h)return toast('Elegí la hora de inicio.');if(d<50||d>90)return toast('La duración tiene que estar entre 50 y 90 minutos.');
-    if(hm(h)<480||hm(h)+d>1200)return toast('El turno tiene que quedar entre las 08:00 y las 20:00.');
-    if(C().turnos.some(t=>t.h===h))return toast('Ya hay un turno a esa hora.');
-    C().turnos.push({h,d});C().turnos.sort((a,b)=>hm(a.h)-hm(b.h));rerender();toast('Turno agregado.')},
+  tgTDia(e){const t=C().turnos[+e.dataset.i];const d=+e.dataset.d;if(!t.dias)t.dias=[...WD];const i=t.dias.indexOf(d);
+    if(i>=0){t.dias.splice(i,1)}else{const o=C().turnos.find(x=>x!==t&&x.h===t.h&&(!x.dias||x.dias.includes(d)));if(o)return toast('Ese día ya tiene un turno a las '+t.h+'.');t.dias.push(d)}rerender()},
+  tgNewTDia(e){const d=+e.dataset.d;U.newTDias=U.newTDias||[...C().dias];const i=U.newTDias.indexOf(d);i>=0?U.newTDias.splice(i,1):U.newTDias.push(d);
+    const h=document.getElementById('t-h').value,du=document.getElementById('t-d').value;rerender();document.getElementById('t-h').value=h;document.getElementById('t-d').value=du},
+  addTurno(){const h=document.getElementById('t-h').value;const d=Math.round(+document.getElementById('t-d').value);
+    if(!h)return toast('Elegí la hora de inicio.');if(!(d>0))return toast('Poné la duración en minutos.');
+    const dias=[...(U.newTDias||C().dias)];if(!dias.length)return toast('Elegí al menos un día.');
+    const clash=C().turnos.find(t=>t.h===h&&(!t.dias||t.dias.some(x=>dias.includes(x))));if(clash)return toast('Ya hay un turno a las '+h+' en alguno de esos días.');
+    C().turnos.push({h,d,dias});C().turnos.sort((a,b)=>hm(a.h)-hm(b.h));U.newTDias=null;rerender();toast('Turno agregado.')},
+  tgOcc(e){const c=C();c.ocupados=c.ocupados||{};const k=ocKey(e.dataset.d,e.dataset.h);
+    if(c.ocupados[k])delete c.ocupados[k];else c.ocupados[k]=true;
+    Object.keys(c.ocupados).forEach(x=>{if(x.split('|')[0]<add(TODAY,-30))delete c.ocupados[x]});rerender()},
   reset(){U.sheet={type:'confirm',title:'¿Reiniciar la demo?',text:'Se borran todos los cambios y vuelven los datos de ejemplo.',yes:'Reiniciar',run:'resetGo'};rerender()},
 };
 document.addEventListener('click',ev=>{const el=ev.target.closest('[data-act]');if(!el)return;const f=A[el.dataset.act];if(!f)return;
