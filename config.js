@@ -31,4 +31,4 @@ window.ADMIN_EMAIL = "merdugan99@gmail.com";
 // 3) Clave de avisos (Firebase → Configuración del proyecto → Cloud Messaging →
 //    Certificados push web → "Par de claves"). Mientras esté en null, los avisos
 //    funcionan sólo con la app abierta.
-window.FCM_VAPID_KEY = null;
+window.FCM_VAPID_KEY = "BG12lijrwBrX4XJRgkdwvaZfGiRvl0l_qAF-RBaC6DHVkZxsf79quttMP4FcTWPTNbMb2dvN5ur90_TvoeQY8Dk";
