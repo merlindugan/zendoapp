@@ -211,6 +211,7 @@ button{cursor:pointer;border:0;background:none}
 .markcard:last-child{border-bottom:0}
 .mmid{display:flex;gap:8px;flex-wrap:wrap}
 .mbtns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.lchart{width:100%;display:block}
 .ckcard{border:2px solid var(--line);padding:14px;display:flex;flex-direction:column;gap:12px}
 .ckcard:first-of-type{border-color:var(--bone)}
 .ckh{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
@@ -295,6 +296,7 @@ textarea.inp{height:auto;min-height:80px;padding:10px 12px}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 <script>
 /* ============ CONSTANTES ============ */
 const AREAS=[['CAR','Cardio'],['MUS','Musculación'],['POT','Potencia'],['FUE','Fuerza'],['BOX','Boxeo'],['MMA','MMA']];
@@ -358,6 +360,7 @@ function seed(){
     {n:'Joaquín',a:'Paz',disc:'Boxeo',size:16,ago:2,used:1,abs:0,plan:[['BOX'],['FUE'],['BOX','POT'],['BOX'],['BOX']],base:{CAR:30,MUS:15,POT:45,FUE:30,BOX:90,MMA:0},rec:[]},
   ];
   const baseSp=[0,140,96,0,22,118,0,30];
+  const alturas=[165,178,162,183,158,176,170,174];
   const extra=[['1996-03-14',61,[5,6,6,5,7,7]],['2001-07-02',72,[7,8,6,5,5,8]],['1999-11-20',58,[6,7,7,6,6,7]],['1993-05-09',84,[7,4,5,5,8,5]],['2003-01-27',55,[4,5,4,4,4,5]],['1998-09-15',77,[7,7,6,7,7,6]],['1990-12-03',66,[4,5,5,5,5,8]],['2005-04-18',69,[5,6,4,4,5,5]]];
   defs.forEach((f,i)=>{
     const id='s'+(i+1);
@@ -365,7 +368,7 @@ function seed(){
     const weeks=emptyWeeks();
     weeks.forEach((w,wi)=>{const src=f.plan[wi]||f.plan[f.plan.length-1];[1,2,3,4,5,6].forEach((d,k)=>{w[d]=[src[k%src.length]]})});
     const ex=extra[i];
-    const st={id,nombre:f.n,apellido:f.a,disc:f.disc,nac:ex[0],peso:ex[1],stats:Object.fromEntries([...STATS,['agi'],['coo']].map(([k],j)=>[k,ex[2][j%6]])),
+    const st={id,nombre:f.n,apellido:f.a,disc:f.disc,nac:ex[0],peso:ex[1],altura:alturas[i],stats:Object.fromEntries([...STATS,['agi'],['coo']].map(([k],j)=>[k,ex[2][j%6]])),
       pack:{size:f.size,start},base:f.base,baseSp:baseSp[i],rango:['','B+','A-','','C+','A','','C'][i]||null,plan:{weeks,repeat:true,month:ym},checks:[],
       notes:{},records:f.rec.map(r=>({id:nid(),ej:r[0],marca:r[1],fecha:add(TODAY,r[2])}))};
     if(i<3){st.checks.push({id:nid(),fecha:add(TODAY,-40),peso:ex[1]+1.2,bicR:31,bicC:33.5,cuad:55,cint:80,gem:36,homb:108,glut:96,ante:26.5});
@@ -468,6 +471,35 @@ function notifyCheck(){
 let U={role:null,sid:null,tab:null,selDay:null,calMonth:TODAY.slice(0,7),prof:null,brush:null,planMonth:TODAY.slice(0,7),sheet:null,agDay:TODAY,adminForm:false};
 try{const r=localStorage.getItem(KEY+'-u');if(r){const o=JSON.parse(r);U.sid=o.sid||null;U.tab=o.tab||null;if(!LIVE)U.role=o.role||null}}catch(e){}
 const saveU=()=>{try{localStorage.setItem(KEY+'-u',JSON.stringify({role:U.role,sid:U.sid,tab:U.tab}))}catch(e){}};
+/* ---- Avisos (Firebase Cloud Messaging) ---- */
+const VAPID=window.FCM_VAPID_KEY||null;
+const pushReady=()=>LIVE&&!!VAPID&&'Notification' in window&&'serviceWorker' in navigator&&!!(firebase.messaging&&firebase.messaging.isSupported&&firebase.messaging.isSupported());
+let msgInit=false;
+async function registerPush(){
+  if(!pushReady()||Notification.permission!=='granted'||!U.role)return false;
+  try{
+    const reg=await navigator.serviceWorker.ready;const m=firebase.messaging();
+    if(!msgInit){msgInit=true;m.onMessage(p=>{const d=p.data||{};if(U.role==='student'&&d.body)toast(d.body)})}
+    const token=await m.getToken({vapidKey:VAPID,serviceWorkerRegistration:reg});
+    if(!token)return false;
+    await fdb.collection('tokens').doc(token).set({role:U.role,sid:U.role==='student'?U.sid:null,at:Date.now(),ua:navigator.userAgent.slice(0,120)});
+    try{localStorage.setItem(KEY+'-tok',token)}catch(e){}
+    return true;
+  }catch(e){console.warn('push',e);return false}
+}
+async function notifyServer(type,id){
+  if(!LIVE||!VAPID||!fauth||!fauth.currentUser)return;
+  await new Promise(r=>setTimeout(r,1500));
+  try{const t=await fauth.currentUser.getIdToken();
+    await fetch('/api/notify',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+t},body:JSON.stringify({type,id})})}catch(e){console.warn('notify',e)}
+}
+const notifState=()=>!('Notification' in window)?'no':Notification.permission;
+function notifBox(student){
+  const st=notifState();if(st==='granted'||st==='no')return '';
+  return `<div class="slab dark" style="display:flex;flex-direction:column;gap:10px"><div class="h3">Activá los avisos</div>
+    <div class="dim" style="font-size:14px">${student?'Te avisamos en el celular cuando el profe confirma o rechaza tu turno.':'Te avisamos cuando un alumno pide un turno.'}${/iPhone|iPad/.test(navigator.userAgent)?' En iPhone, primero instalá la app con Compartir → Agregar a inicio y abrila desde ahí.':''}</div>
+    ${st==='denied'?'<div class="dim" style="font-size:13px">Los avisos están bloqueados. Activalos desde la configuración del navegador para esta página.</div>':`<button class="btn g" data-act="notifOn">Activar avisos</button>`}</div>`;
+}
 function boot(){
   if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('/sw.js').catch(()=>{});
   if(!LIVE){render();return}
@@ -483,7 +515,7 @@ function boot(){
     if(isAdmin){U.role='admin';if(!['panel','agenda','planes','alumnos','rank','ajustes'].includes(U.tab))U.tab='panel'}
     else if(user.isAnonymous&&U.sid){U.role='student'}
     else{fauth.signOut();return}
-    saveU();listen();render();
+    saveU();listen();render();registerPush();
   });
 }
 
@@ -602,6 +634,64 @@ function sparBlock(st){
   ${last.length?`<div class="rows">${last.map(s=>`<div class="row"><div class="grow"><div class="t">${fdw(s.date)}</div><div class="s">${s.h} · ${AN[s.area].toUpperCase()}</div></div><div class="h3 gold">${s.sp} RDS</div></div>`).join('')}</div>`:'<div class="empty-s">Todavía no hay rounds de sparring cargados.</div>'}`;
 }
 const fnum=v=>(Math.round(v*10)/10).toLocaleString('es-AR');
+const ckLabel=k=>(CHK.find(c=>c[0]===k)||[])[1]||k;
+const ckUnit=k=>(CHK.find(c=>c[0]===k)||[])[2]||'';
+const hasV=v=>v!=null&&v!=='';
+const ckSorted=st=>[...(st.checks||[])].sort((a,b)=>a.fecha.localeCompare(b.fecha));
+function lineChart(pts,unit){
+  const W=340,H=190,L=44,R=20,T=24,B=34;const n=pts.length;
+  const vs=pts.map(p=>p.v);let lo=Math.min(...vs),hi=Math.max(...vs);
+  if(hi-lo<1){lo-=1;hi+=1}const padv=(hi-lo)*0.15;lo-=padv;hi+=padv;
+  const t0=P(pts[0].f).getTime(),t1=P(pts[n-1].f).getTime();
+  const x=i=>n===1?(L+(W-L-R)/2):L+(W-L-R)*((P(pts[i].f).getTime()-t0)/((t1-t0)||1));
+  const y=v=>T+(H-T-B)*(1-(v-lo)/(hi-lo));
+  let g='';
+  [0,0.5,1].forEach(f=>{const v=lo+(hi-lo)*f;const yy=y(v);g+=`<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="var(--line)" stroke-width="1"/><text x="${L-6}" y="${yy+4}" text-anchor="end" fill="var(--dim)" font-family="JetBrains Mono,monospace" font-size="10">${fnum(v)}</text>`});
+  if(n>1){const d=pts.map((p,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(p.v).toFixed(1)).join(' ');
+    g+=`<path d="${d} L${x(n-1).toFixed(1)} ${H-B} L${x(0).toFixed(1)} ${H-B} Z" fill="var(--gold)" fill-opacity=".12"/><path d="${d}" fill="none" stroke="var(--gold)" stroke-width="3" stroke-linejoin="miter"/>`}
+  pts.forEach((p,i)=>{const last=i===n-1;const sz=last?10:7;g+=`<rect x="${x(i)-sz/2}" y="${y(p.v)-sz/2}" width="${sz}" height="${sz}" fill="${last?'var(--gold)':'var(--ink)'}" stroke="var(--gold)" stroke-width="2"/>`;
+    if(last||i===0||n<=5){const anc=n===1?'middle':(i===0?'start':(last?'end':'middle'));g+=`<text x="${x(i)}" y="${y(p.v)-10}" text-anchor="${anc}" fill="${last?'var(--gold)':'var(--bone)'}" font-family="Big Shoulders Display,Impact,sans-serif" font-weight="900" font-size="${last?18:14}">${fnum(p.v)}</text>`}});
+  const lab=n<=4?pts.map((_,i)=>i):[0,n-1];
+  lab.forEach(i=>{const anc=n===1?'middle':(i===0?'start':(i===n-1?'end':'middle'));g+=`<text x="${x(i)}" y="${H-12}" text-anchor="${anc}" fill="var(--dim)" font-family="JetBrains Mono,monospace" font-size="10" font-weight="700">${fd(pts[i].f)}</text>`});
+  return `<svg class="lchart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Evolución en ${unit}">${g}</svg>`;
+}
+function checksCharts(st){
+  const recs=ckSorted(st);if(recs.length<2)return '';
+  const avail=CHK.filter(([k])=>recs.filter(r=>hasV(r[k])).length>=2);
+  if(!avail.length)return '';
+  const m=avail.some(([k])=>k===U.ckM)?U.ckM:avail[0][0];
+  const pts=recs.filter(r=>hasV(r[m])).map(r=>({f:r.fecha,v:+r[m]}));
+  const tot=Math.round((pts[pts.length-1].v-pts[0].v)*10)/10;
+  // comparación radial
+  const last=recs[recs.length-1];const older=recs.slice(0,-1).reverse();
+  const cmp=older.find(r=>r.id===U.ckCmp)||older[0];
+  const axes=CHK.filter(([k])=>k!=='peso'&&hasV(last[k])&&hasV(cmp[k]));
+  let radarH='';
+  if(axes.length>=3){
+    const cx=170,cy=150,Rr=104,n=axes.length;
+    const scale=k=>{const v=recs.filter(r=>hasV(r[k])).map(r=>+r[k]);return[Math.min(...v),Math.max(...v)]};
+    const pos=(k,v)=>{const[lo,hi]=scale(k);return hi===lo?0.7:0.3+0.7*(v-lo)/(hi-lo)};
+    const pt=(i,f)=>{const a=-Math.PI/2+i*2*Math.PI/n;return[cx+Math.cos(a)*Rr*f,cy+Math.sin(a)*Rr*f]};
+    let g='';[0.3,0.65,1].forEach(f=>{g+=`<polygon points="${axes.map((_,i)=>pt(i,f).join(',')).join(' ')}" fill="none" stroke="var(--line)" stroke-width="${f===1?2:1}"/>`});
+    axes.forEach((_,i)=>{const[x,y]=pt(i,1);g+=`<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="var(--line)"/>`});
+    g+=`<polygon points="${axes.map(([k],i)=>pt(i,pos(k,+cmp[k])).join(',')).join(' ')}" fill="none" stroke="var(--bone)" stroke-width="2" stroke-dasharray="5 4"/>`;
+    g+=`<polygon points="${axes.map(([k],i)=>pt(i,pos(k,+last[k])).join(',')).join(' ')}" fill="var(--gold)" fill-opacity=".3" stroke="var(--gold)" stroke-width="3"/>`;
+    axes.forEach(([k,nm],i)=>{const[x,y]=pt(i,1.24);const anc=Math.abs(x-cx)<5?'middle':(x>cx?'start':'end');const d=Math.round((last[k]-cmp[k])*10)/10;
+      g+=`<text x="${x}" y="${y-3}" text-anchor="${anc}" fill="var(--dim)" font-family="JetBrains Mono,monospace" font-size="9.5" font-weight="700">${nm.toUpperCase().replace('BÍCEPS ','BÍC. ')}</text><text x="${x}" y="${y+13}" text-anchor="${anc}" fill="${d?'var(--gold)':'var(--bone)'}" font-family="Big Shoulders Display,Impact,sans-serif" font-weight="900" font-size="15">${d>0?'+':''}${fnum(d)}</text>`});
+    radarH=`<svg class="radar" viewBox="-20 0 380 310" role="img" aria-label="Comparación de medidas">${g}</svg>
+    <div class="eyebrow" style="display:flex;gap:14px;flex-wrap:wrap"><span><i class="lg ap"></i> ${fd(last.fecha)} (ÚLTIMO)</span><span><i class="lg" style="border-style:dashed;border-color:var(--bone)"></i> ${fd(cmp.fecha)}</span></div>
+    <div class="dim" style="font-size:13px">Cada eje tiene su propia escala, del valor más bajo al más alto registrado. Sirve para ver qué medidas cambiaron, no para comparar una medida con otra. El número es la diferencia en cm.</div>`;
+  }else radarH='<div class="empty-s">Para comparar hacen falta al menos 3 medidas en cm cargadas en los dos chequeos.</div>';
+  return `<div class="sec"><div class="sechead"><h2 class="h3" style="font-size:19px">Evolución</h2><span class="eyebrow">${pts.length} registros</span></div>
+    <div class="lbtabs">${avail.map(([k,nm])=>`<button class="${k===m?'on':''}" data-act="ckM" data-k="${k}">${nm.toUpperCase()}</button>`).join('')}</div>
+    <div class="statrow"><div><div class="h2">${fnum(pts[pts.length-1].v)}<span class="eyebrow" style="margin-left:4px">${ckUnit(m)}</span></div><div class="eyebrow">Actual</div></div><div><div class="h2 ${tot?'gold':''}">${tot>0?'+':''}${fnum(tot)}</div><div class="eyebrow">Desde ${fd(pts[0].f)}</div></div><div><div class="h2">${fnum(Math.min(...pts.map(p=>p.v)))}–${fnum(Math.max(...pts.map(p=>p.v)))}</div><div class="eyebrow">Mín–máx</div></div></div>
+    ${lineChart(pts,ckUnit(m))}
+  </div>
+  <div class="sec"><div class="sechead"><h2 class="h3" style="font-size:19px">Comparar medidas</h2></div>
+    <div class="field"><label for="ckcmp">Último chequeo contra</label><select class="inp" id="ckcmp">${older.map(r=>`<option value="${r.id}" ${r.id===cmp.id?'selected':''}>${fd(r.fecha)} ${r.fecha.slice(0,4)}</option>`).join('')}</select></div>
+    ${radarH}
+  </div>`;
+}
 function checksList(st,admin){
   const list=[...(st.checks||[])].sort((a,b)=>b.fecha.localeCompare(a.fecha));
   if(!list.length)return `<div class="empty-s">${admin?'Todavía no hay chequeos. Cargá el primero con el botón de abajo.':'Todavía no hay chequeos cargados.'}</div>`;
@@ -645,6 +735,7 @@ function vHoy(st){
     ${next.length||rej.length?`<div class="rows">${[...next,...rej].map(r=>`<div class="row"><div class="grow"><div class="t">${fdw(r.date)}</div><div class="s">${r.h} · ${durOf(r.h)} MIN</div></div>${resStatusPill(r)}</div>`).join('')}</div>`:'<div class="empty-s">No tenés turnos reservados. Pedí uno desde Turnos.</div>'}
   </section>
   <button class="btn full" data-act="tab" data-tab="asist">Ver mis asistencias</button>
+  ${notifBox(true)}
   </div>`;
 }
 function vPlan(st){
@@ -694,13 +785,13 @@ function vYo(st){
   const pt=points(st);const tot=Object.values(pt).reduce((a,b)=>a+b,0);
   return `<div class="stack">
   <div><div class="eyebrow">${esc(st.disc)}</div><h1 class="h1">${esc(st.nombre)}<br><span class="dim">${esc(st.apellido)}</span></h1>
-  <div class="meta" style="margin-top:8px">${isCombat(st)?`<span class="gold">RANGO ${st.rango||'—'}</span>`:''}${st.nac?`<span>${age(st.nac)} AÑOS</span>`:''}${st.peso?`<span>${st.peso} KG</span>`:''}</div></div>
+  <div class="meta" style="margin-top:8px">${isCombat(st)?`<span class="gold">RANGO ${st.rango||'—'}</span>`:''}${st.nac?`<span>${age(st.nac)} AÑOS</span>`:''}${st.peso?`<span>${st.peso} KG</span>`:''}${st.altura?`<span>${st.altura} CM</span>`:''}</div></div>
   <section class="slab gold" style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px"><div><div class="eyebrow">Puntos totales</div><div class="areabig">${tot}</div></div><div class="eyebrow" style="text-align:right">+${PTS} por sesión<br>en el área que entrenás</div></section>
   <section class="sec"><div class="sechead"><h2 class="h3">Prioridad por área</h2><span class="eyebrow">Puntos</span></div>${pointsBlock(st)}</section>
   <section class="sec"><div class="sechead"><h2 class="h3">Stats</h2><span class="eyebrow">1 a 10 · las pone el profe</span></div>${radar(st)}</section>
   ${isCombat(st)?`<section class="sec"><div class="sechead"><h2 class="h3">Rounds de sparring</h2></div>${sparBlock(st)}</section>`:''}
   <section class="sec"><div class="sechead"><h2 class="h3">Récords</h2><span class="eyebrow">Ejercicio · marca</span></div>${recordsList(st,false)}</section>
-  <section class="sec"><div class="sechead"><h2 class="h3">Chequeos físicos</h2><span class="eyebrow">▲▼ vs. el anterior</span></div>${checksList(st,false)}</section>
+  <section class="sec"><div class="sechead"><h2 class="h3">Chequeos físicos</h2><span class="eyebrow">▲▼ vs. el anterior</span></div>${checksCharts(st)}${checksList(st,false)}</section>
   </div>`;
 }
 
@@ -742,6 +833,7 @@ function vPanel(){
   const todaySlots=slotsFor(TODAY);
   const stRow=(st,right)=>`<div class="row"><button class="grow" style="text-align:left" data-act="openProf" data-sid="${st.id}"><div class="t">${esc(fullName(st))}</div><div class="s">${(()=>{const p=pack(st);return 'PACK '+p.size+' · QUEDAN '+p.rem+' · VENCE '+fd(p.end)})()}</div></button>${right}</div>`;
   return `<div class="stack">
+  ${notifBox(false)}
   <section class="slab gold"><div class="eyebrow">Ingresos · ${MONL[P(TODAY).getMonth()]}</div><div class="areabig" style="font-size:clamp(52px,16vw,88px)">${money(inc)}</div><div class="meta" style="margin-top:8px"><span>${pays.length} PAGOS</span><span>${D.students.length} ALUMNOS</span></div></section>
   <div class="tiles">
     ${tile('sol',pe.length,'Solicitudes de turno')}
@@ -871,6 +963,8 @@ function vProfile(st){
 `,
     chk:()=>`  <section class="sec"><div class="sechead"><h2 class="h3">Chequeos físicos</h2><span class="eyebrow">▲▼ = cambio vs. el anterior</span></div>
     <button class="btn g full" data-act="newCheck" data-sid="${st.id}">+ Nuevo chequeo</button>
+    ${checksCharts(st)}
+    <div class="sechead"><h2 class="h3" style="font-size:19px">Registros</h2></div>
     ${checksList(st,true)}
   </section>
 `,
@@ -880,7 +974,7 @@ function vProfile(st){
   return `<div class="stack">
   <button class="back" data-act="closeProf">◀ ALUMNOS</button>
   <div><div class="eyebrow">${esc(st.disc)}${st.rango?' · rango '+st.rango:''}</div><h1 class="h1">${esc(st.nombre)}<br><span class="dim">${esc(st.apellido)}</span></h1>
-  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px"><div class="meta" style="flex:1"><span>${st.nac?age(st.nac)+' AÑOS':'SIN EDAD'}</span><span>${st.peso?st.peso+' KG':'SIN PESO'}</span><span class="dim">CLAVE: ${norm(st.nombre+st.apellido)}</span></div><button class="btn s" data-act="editStudent" data-sid="${st.id}">Editar datos</button></div></div>
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px"><div class="meta" style="flex:1"><span>${st.nac?age(st.nac)+' AÑOS':'SIN EDAD'}</span><span>${st.peso?st.peso+' KG':'SIN PESO'}</span><span>${st.altura?st.altura+' CM':'SIN ALTURA'}</span><span class="dim">CLAVE: ${norm(st.nombre+st.apellido)}</span></div><button class="btn s" data-act="editStudent" data-sid="${st.id}">Editar datos</button></div></div>
   <div class="lbtabs ptabs">${tabs.map(([k,l])=>`<button class="${pt===k?'on':''}" data-act="ptab" data-k="${k}">${l}</button>`).join('')}</div>
   ${body}
   </div>`;
@@ -915,7 +1009,7 @@ function vAjustes(){
     <div class="grid2"><div class="field"><label for="c-av">Vence en ≤ días</label><input class="inp mono" type="number" id="c-av" data-chg="alertaVence" value="${c.alertaVence}"></div><div class="field"><label for="c-as">Quedan ≤ sesiones</label><input class="inp mono" type="number" id="c-as" data-chg="alertaSesiones" value="${c.alertaSesiones}"></div><div class="field"><label for="c-in">Inactivo desde (días)</label><input class="inp mono" type="number" id="c-in" data-chg="inactivo" value="${c.inactivo}"></div></div>
   </section>
   <section class="sec"><div class="sechead"><h2 class="h3">Avisos</h2></div>
-    <div class="dim" style="font-size:14px">Te avisa en este celular cuando un alumno pide un turno, mientras la app esté abierta o en segundo plano.</div>
+    <div class="dim" style="font-size:14px">Te avisa en este celular cuando un alumno pide un turno, aunque la app esté cerrada.${LIVE&&!VAPID?' Falta cargar la clave de avisos en config.js.':''}</div>
     <button class="btn" data-act="notifOn">${'Notification' in window&&Notification.permission==='granted'?'Avisos activados ✓':'Activar avisos en este celular'}</button>
   </section>
   ${LIVE?'':'<button class="btn x full" data-act="reset">Reiniciar datos de ejemplo</button>'}
@@ -953,6 +1047,7 @@ function sheetHTML(){
   if(sh.type==='new'){body=`<h2 class="h2">Nuevo alumno</h2>
     <div class="grid2"><div class="field"><label for="ns-n">Nombre</label><input class="inp" id="ns-n"></div><div class="field"><label for="ns-a">Apellido</label><input class="inp" id="ns-a"></div></div>
     <div class="grid2"><div class="field"><label for="ns-b">Fecha de nacimiento</label><input class="inp mono" type="date" id="ns-b"></div><div class="field"><label for="ns-p">Peso (kg)</label><input class="inp mono" type="number" step="0.1" id="ns-p"></div></div>
+    <div class="grid2"><div class="field"><label for="ns-h">Altura (cm)</label><input class="inp mono" type="number" step="1" id="ns-h"></div></div>
     <div class="field"><label for="ns-d">Disciplina</label><select class="inp" id="ns-d"><option>Preparación física</option><option>Boxeo</option><option>MMA</option></select></div>
     <div class="field"><label>Pack</label><div class="seg">${[8,12,16].map(n=>`<button class="${n===(sh.size||12)?'on':''}" data-act="nsSize" data-n="${n}" style="flex:1">${n}</button>`).join('')}</div></div>
     <div class="grid2"><div class="field"><label for="ns-m">Monto pagado</label><input class="inp mono" type="number" id="ns-m" value="${C().precios[sh.size||12]}"></div><div class="field"><label for="ns-f">Fecha de pago</label><input class="inp mono" type="date" id="ns-f" value="${TODAY}"></div></div>
@@ -968,6 +1063,7 @@ function sheetHTML(){
     body=`<h2 class="h2">Editar datos</h2>
     <div class="grid2"><div class="field"><label for="ed-n">Nombre</label><input class="inp" id="ed-n" value="${esc(st.nombre)}"></div><div class="field"><label for="ed-a">Apellido</label><input class="inp" id="ed-a" value="${esc(st.apellido)}"></div></div>
     <div class="grid2"><div class="field"><label for="ed-b">Fecha de nacimiento</label><input class="inp mono" type="date" id="ed-b" value="${st.nac||''}"></div><div class="field"><label for="ed-p">Peso (kg)</label><input class="inp mono" type="number" step="0.1" id="ed-p" value="${st.peso??''}"></div></div>
+    <div class="grid2"><div class="field"><label for="ed-h">Altura (cm)</label><input class="inp mono" type="number" step="1" id="ed-h" value="${st.altura??''}"></div></div>
     <div class="field"><label for="ed-d">Disciplina</label><select class="inp" id="ed-d">${opts.map(o=>`<option ${o===st.disc?'selected':''}>${o}</option>`).join('')}</select></div>
     <div class="eyebrow">Si cambiás nombre o apellido, cambia la clave del alumno.</div>
     <button class="btn g full" data-act="saveEdit">Guardar</button><button class="btn x full" data-act="closeSheet">Cancelar</button>`}
@@ -1042,7 +1138,7 @@ const A={
       const q=await fdb.collection('students').get();
       const st=q.docs.map(d=>d.data()).find(s=>norm(s.nombre+s.apellido)===v);
       if(!st){await fauth.signOut();loggingIn=false;return err('Clave incorrecta. Es tu nombre y apellido juntos.')}
-      U.sid=st.id;U.role='student';U.tab='hoy';U.calMonth=TODAY.slice(0,7);loggingIn=false;saveU();listen();go();
+      U.sid=st.id;U.role='student';U.tab='hoy';U.calMonth=TODAY.slice(0,7);loggingIn=false;saveU();listen();go();registerPush();
     }catch(e){loggingIn=false;console.error(e);err(e.code==='auth/operation-not-allowed'||e.code==='auth/admin-restricted-operation'?'Falta activar el acceso anónimo en Firebase.':'No se pudo entrar. Revisá la conexión.')}},
   async adminLogin(){const err=t=>{const e=document.getElementById('lerr');if(e)e.textContent=t};
     const em=document.getElementById('aem').value.trim(),pw=document.getElementById('apw').value;if(!em||!pw)return err('Completá email y contraseña.');
@@ -1050,11 +1146,17 @@ const A={
     err('Entrando…');try{await fauth.signInWithEmailAndPassword(em,pw)}catch(e){err('Email o contraseña incorrectos.')}},
   adminForm(){U.adminForm=!U.adminForm;render()},
   as(e){const r=e.dataset.r;if(r==='admin'){U.role='admin';U.tab='panel'}else{U.role='student';U.sid=r;U.tab='hoy'}U.calMonth=TODAY.slice(0,7);U.prof=null;go()},
-  logout(){U.role=null;U.sid=null;U.prof=null;U.sheet=null;U.tab=null;seenPend=null;
+  async logout(){
+    if(LIVE&&fdb&&fauth&&fauth.currentUser){let tok=null;try{tok=localStorage.getItem(KEY+'-tok')}catch(e){}
+      if(tok){try{await fdb.collection('tokens').doc(tok).set({role:'none',sid:null,at:Date.now()})}catch(e){}}}
+    U.role=null;U.sid=null;U.prof=null;U.sheet=null;U.tab=null;seenPend=null;
     if(LIVE){stopListen();synced={};D=emptyD();try{fauth.signOut()}catch(e){}}
     go()},
   notifOn(){if(!('Notification' in window))return toast('Este celular no permite avisos desde la app.');
-    Notification.requestPermission().then(p=>{toast(p==='granted'?'Avisos activados en este dispositivo.':'Los avisos quedaron bloqueados. Activalos desde la configuración del navegador.');rerender()})},
+    Notification.requestPermission().then(async p=>{
+      if(p!=='granted'){toast('Los avisos quedaron bloqueados. Activalos desde la configuración del navegador.');return rerender()}
+      if(LIVE&&!VAPID){toast('Avisos activados mientras la app esté abierta. Falta la clave de avisos en config.js para recibirlos con la app cerrada.');return rerender()}
+      const ok=await registerPush();toast(ok||!LIVE?'Avisos activados en este celular.':'No se pudieron activar los avisos en este celular.');rerender()})},
   tab(e){U.tab=e.dataset.tab;U.sheet=null;if(U.tab!=='alumnos')U.prof=null;if(U.tab==='turnos'||U.tab==='agenda')U.calMonth=TODAY.slice(0,7);go()},
   bell(){U.tab='panel';go();const t=pending().length?'p-sol':'p-mar';setTimeout(()=>{const el=document.getElementById(t);if(el)el.scrollIntoView({behavior:'smooth',block:'start'})},30)},
   panelGo(e){const el=document.getElementById('p-'+e.dataset.id);if(el)el.scrollIntoView({behavior:'smooth',block:'start'})},
@@ -1063,15 +1165,16 @@ const A={
   selDay(e){U.selDay=e.dataset.d;rerender()},
   request(e){const st=stu(U.sid);const d=e.dataset.d,h=e.dataset.h;
     if(D.res.some(r=>r.sid===st.id&&r.date===d&&r.h===h&&r.status!=='rech'))return;
-    D.res.push({id:nid(),sid:st.id,date:d,h,status:'pend',at:Date.now()});rerender();toast('Solicitud enviada. El profe tiene que confirmarla.')},
-  approve(e){const r=D.res.find(x=>x.id===e.dataset.id);const x=slotsFor(r.date).find(s=>s.h===r.h);if(x&&x.left<=0)return toast(x.occ?'Ese horario está marcado como ocupado.':'Ese turno ya está lleno.');r.status='ok';rerender();toast('Turno confirmado para '+stu(r.sid).nombre+'.')},
-  reject(e){const r=D.res.find(x=>x.id===e.dataset.id);r.status='rech';rerender();toast('Solicitud rechazada.')},
+    const rid=nid();D.res.push({id:rid,sid:st.id,date:d,h,status:'pend',at:Date.now()});rerender();toast('Solicitud enviada. El profe tiene que confirmarla.');notifyServer('request',rid)},
+  approve(e){const r=D.res.find(x=>x.id===e.dataset.id);const x=slotsFor(r.date).find(s=>s.h===r.h);if(x&&x.left<=0)return toast(x.occ?'Ese horario está marcado como ocupado.':'Ese turno ya está lleno.');r.status='ok';rerender();notifyServer('reply',r.id);toast('Turno confirmado para '+stu(r.sid).nombre+'.')},
+  reject(e){const r=D.res.find(x=>x.id===e.dataset.id);r.status='rech';rerender();notifyServer('reply',r.id);toast('Solicitud rechazada.')},
   mark(e){const r=D.res.find(x=>x.id===e.dataset.id);const st=e.dataset.st;const sel=document.getElementById('ar-'+r.id);const area=sel?sel.value:null;
     const sp=st==='P'?((U.spDraft||{})[r.id]||0):0;D.sessions.push({id:nid(),sid:r.sid,date:r.date,h:r.h,area:st==='P'?area:null,sp,status:st,resId:r.id});if(U.spDraft)delete U.spDraft[r.id];rerender();toast(st==='P'?stu(r.sid).nombre+': presente · +'+PTS+' '+AN[area]+(sp?' · '+sp+' rounds':''):stu(r.sid).nombre+': ausente')},
   spDraft(e){U.spDraft=U.spDraft||{};const id=e.dataset.id;U.spDraft[id]=Math.max(0,(U.spDraft[id]||0)+(+e.dataset.v));const el=document.getElementById('sp-'+id);if(el)el.textContent=U.spDraft[id]},
   spEdit(e){const s=D.sessions.find(x=>x.id===e.dataset.id);s.sp=Math.max(0,(s.sp||0)+(+e.dataset.v));rerender()},
   lb(e){U.lbBy=e.dataset.k;rerender()},
   togPays(){U.showPays=!U.showPays;rerender()},
+  ckM(e){U.ckM=e.dataset.k;rerender()},
   ptab(e){U.ptab=e.dataset.k;rerender()},
   setRango(e){const st=stu(e.dataset.sid);st.rango=st.rango===e.dataset.r?null:e.dataset.r;rerender()},
   omit(e){const r=D.res.find(x=>x.id===e.dataset.id);r.omit=true;rerender();toast('Sin marcar. No suma ni descuenta.')},
@@ -1104,7 +1207,7 @@ const A={
   editStudent(e){U.sheet={type:'edit',sid:e.dataset.sid};rerender()},
   saveEdit(){const st=stu(U.sheet.sid);const n=document.getElementById('ed-n').value.trim(),a=document.getElementById('ed-a').value.trim();if(!n||!a)return toast('Falta nombre o apellido.');
     if(D.students.some(s=>s.id!==st.id&&norm(s.nombre+s.apellido)===norm(n+a)))return toast('Ya existe otro alumno con ese nombre y apellido.');
-    st.nombre=n;st.apellido=a;st.disc=document.getElementById('ed-d').value;st.nac=document.getElementById('ed-b').value||null;const pz=parseFloat(document.getElementById('ed-p').value);st.peso=isNaN(pz)?null:pz;U.sheet=null;rerender();toast('Datos guardados.')},
+    st.nombre=n;st.apellido=a;st.disc=document.getElementById('ed-d').value;st.nac=document.getElementById('ed-b').value||null;const pz=parseFloat(document.getElementById('ed-p').value);st.peso=isNaN(pz)?null:pz;const hz=parseFloat(document.getElementById('ed-h').value);st.altura=isNaN(hz)?null:hz;U.sheet=null;rerender();toast('Datos guardados.')},
   rep(e){const st=stu(e.dataset.sid);st.plan.repeat=!st.plan.repeat;if(!st.plan.repeat)st.plan.month=U.planMonth;rerender();toast(st.plan.repeat?'El plan se mantiene todos los meses.':'El plan vale sólo para '+ymLabel(U.planMonth).toLowerCase()+'.')},
   planPrev(){U.planMonth=ymShift(U.planMonth,-1);U.planWeek=null;rerender()},
   planNext(){U.planMonth=ymShift(U.planMonth,1);U.planWeek=null;rerender()},
@@ -1118,19 +1221,19 @@ const A={
   copyPlan(){const st=stu(U.sheet.sid);const from=stu(document.getElementById('copyFrom').value);st.plan.weeks=JSON.parse(JSON.stringify(from.plan.weeks));rerender();toast('Plan de '+from.nombre+' copiado.')},
   closeSheet(){U.sheet=null;rerender()},
   scrim(e,ev){if(ev.target===e){U.sheet=null;rerender()}},
-  openProf(e){U.tab='alumnos';U.prof=e.dataset.sid;U.ptab='res';go()},
+  openProf(e){U.tab='alumnos';U.prof=e.dataset.sid;U.ptab='res';U.ckM=null;U.ckCmp=null;go()},
   closeProf(){U.prof=null;go()},
   renew(e){U.sheet={type:'renew',sid:e.dataset.sid};rerender()},
   renSize(e){U.sheet.size=+e.dataset.n;rerender()},
   saveRenew(){const st=stu(U.sheet.sid);const size=U.sheet.size||st.pack.size;const m=+document.getElementById('rn-m').value||0;const d=document.getElementById('rn-d').value||TODAY;
     st.pack={size,start:d};D.pays.push({id:nid(),sid:st.id,date:d,size,monto:m});U.sheet=null;rerender();toast('Pago guardado. Pack de '+size+' hasta el '+fd(add(d,30))+'.')},
   newStudent(){U.sheet={type:'new',size:12};rerender()},
-  nsSize(e){const ids=['ns-n','ns-a','ns-d','ns-b','ns-p','ns-f'];const keep=ids.map(i=>document.getElementById(i).value);U.sheet.size=+e.dataset.n;rerender();
+  nsSize(e){const ids=['ns-n','ns-a','ns-d','ns-b','ns-p','ns-h','ns-f'];const keep=ids.map(i=>document.getElementById(i).value);U.sheet.size=+e.dataset.n;rerender();
     ids.forEach((i,j)=>document.getElementById(i).value=keep[j])},
   saveNew(){const n=document.getElementById('ns-n').value.trim(),a=document.getElementById('ns-a').value.trim();if(!n||!a)return toast('Falta nombre o apellido.');
     if(D.students.some(s=>norm(s.nombre+s.apellido)===norm(n+a)))return toast('Ya existe un alumno con ese nombre y apellido.');
     const size=U.sheet.size||12;const d=document.getElementById('ns-f').value||TODAY;const id=nid();
-    D.students.push({id,nombre:n,apellido:a,disc:document.getElementById('ns-d').value,nac:document.getElementById('ns-b').value||null,peso:parseFloat(document.getElementById('ns-p').value)||null,stats:Object.fromEntries([...STATS,...STATS_F].map(([k])=>[k,5])),checks:[],pack:{size,start:d},base:{},plan:{weeks:emptyWeeks(),repeat:true,month:TODAY.slice(0,7)},notes:{},records:[]});
+    D.students.push({id,nombre:n,apellido:a,disc:document.getElementById('ns-d').value,nac:document.getElementById('ns-b').value||null,peso:parseFloat(document.getElementById('ns-p').value)||null,altura:parseFloat(document.getElementById('ns-h').value)||null,stats:Object.fromEntries([...STATS,...STATS_F].map(([k])=>[k,5])),checks:[],pack:{size,start:d},base:{},plan:{weeks:emptyWeeks(),repeat:true,month:TODAY.slice(0,7)},notes:{},records:[]});
     D.pays.push({id:nid(),sid:id,date:d,size,monto:+document.getElementById('ns-m').value||0});U.sheet=null;U.prof=id;go();toast('Alumno creado. Clave: '+norm(n+a))},
   addRec(e){const ej=document.getElementById('rec-ej').value.trim(),mk=document.getElementById('rec-mk').value.trim();if(!ej||!mk)return toast('Completá ejercicio y marca.');
     stu(e.dataset.sid).records.push({id:nid(),ej,marca:mk,fecha:TODAY});rerender();toast('Récord guardado.')},
@@ -1158,7 +1261,7 @@ const A={
 };
 document.addEventListener('click',ev=>{const el=ev.target.closest('[data-act]');if(!el)return;const f=A[el.dataset.act];if(!f)return;
   if(el.dataset.act==='scrim'){if(ev.target===el)f(el,ev);return}f(el,ev)});
-document.addEventListener('change',ev=>{const el=ev.target;const k=el.dataset&&el.dataset.chg;if(!k)return;const v=+el.value;if(isNaN(v))return;
+document.addEventListener('change',ev=>{const el=ev.target;if(el.id==='ckcmp'){U.ckCmp=el.value;rerender();return}const k=el.dataset&&el.dataset.chg;if(!k)return;const v=+el.value;if(isNaN(v))return;
   if(k==='precio')C().precios[el.dataset.n]=v;else if(v>0)C()[k]=v;save();});
 document.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&ev.target.id==='key')A.login();if(ev.key==='Escape'&&U.sheet){U.sheet=null;rerender()}});
 boot();

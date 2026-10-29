@@ -1,6 +1,6 @@
 // ZendoApp service worker: permite instalar la app y abrirla sin conexión.
 // Si cambiás algo en la app, subí este número para forzar la actualización.
-const VERSION = 'zendoapp-v3';
+const VERSION = 'zendoapp-v4';
 const SHELL = ['/', '/index.html', '/config.js', '/manifest.json',
   '/icons/icon-192.png', '/icons/icon-512.png', '/icons/apple-touch-icon.png'];
 
@@ -31,6 +31,21 @@ self.addEventListener('fetch', e => {
   }
   // Íconos y demás: lo guardado, si no hay, la red.
   e.respondWith(caches.match(req).then(hit => hit || fetch(req)));
+});
+
+// Aviso que llega con la app cerrada (lo manda /api/notify por Firebase Cloud Messaging).
+self.addEventListener('push', e => {
+  let p = {};
+  try { p = e.data ? e.data.json() : {}; } catch (err) { p = { data: { body: e.data && e.data.text() } }; }
+  const d = p.data || {}, n = p.notification || {};
+  const title = d.title || n.title || 'ZendoApp';
+  e.waitUntil(self.registration.showNotification(title, {
+    body: d.body || n.body || '',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    tag: d.tag || undefined,
+    data: { url: d.url || '/' },
+  }));
 });
 
 // Al tocar un aviso, abre la app.

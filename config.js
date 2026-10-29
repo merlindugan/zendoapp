@@ -27,3 +27,8 @@ window.FIREBASE_CONFIG = {
 
 // 2) El email con el que vas a entrar como profe (el mismo que creás en Firebase → Authentication).
 window.ADMIN_EMAIL = "merdugan99@gmail.com";
+
+// 3) Clave de avisos (Firebase → Configuración del proyecto → Cloud Messaging →
+//    Certificados push web → "Par de claves"). Mientras esté en null, los avisos
+//    funcionan sólo con la app abierta.
+window.FCM_VAPID_KEY = null;

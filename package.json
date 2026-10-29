@@ -1,0 +1,9 @@
+{
+  "name": "zendoapp",
+  "private": true,
+  "description": "ZendoApp: app del gimnasio. La página es index.html; api/notify.js envía los avisos.",
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "firebase-admin": "12.1.0"
+  }
+}

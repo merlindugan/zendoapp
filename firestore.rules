@@ -30,6 +30,15 @@ service cloud.firestore {
       allow create: if isAdmin() || (signedIn() && request.resource.data.status == 'pend');
       allow update, delete: if isAdmin();
     }
+    // Celulares que reciben avisos: cada uno registra el suyo; sólo el profe los lee o borra
+    match /tokens/{t} {
+      allow create, update: if signedIn();
+      allow read, delete: if isAdmin();
+    }
+    // Control interno de avisos enviados (sólo lo usa el servidor)
+    match /notified/{x} {
+      allow read, write: if false;
+    }
     // Pagos: sólo el profe
     match /pays/{id} {
       allow read, write: if isAdmin();
