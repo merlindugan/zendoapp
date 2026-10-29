@@ -1,0 +1,38 @@
+rules_version = '2';
+// Reglas de seguridad de ZendoApp.
+// Cambiá TU_EMAIL_DE_PROFE@ejemplo.com por tu email de profe (el mismo de config.js).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'TU_EMAIL_DE_PROFE@ejemplo.com';
+    }
+    function signedIn() { return request.auth != null; }
+
+    // Ajustes del gimnasio (cupo, turnos, precios, alertas)
+    match /meta/{doc} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+    // Alumnos, asistencias: los alumnos leen (para su ficha y el ranking), sólo el profe escribe
+    match /students/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+    match /sessions/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+    // Turnos: el alumno sólo puede crear solicitudes pendientes; confirmar o borrar es del profe
+    match /res/{id} {
+      allow read: if signedIn();
+      allow create: if isAdmin() || (signedIn() && request.resource.data.status == 'pend');
+      allow update, delete: if isAdmin();
+    }
+    // Pagos: sólo el profe
+    match /pays/{id} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

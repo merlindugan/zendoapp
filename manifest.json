@@ -1,0 +1,17 @@
+{
+  "name": "ZendoApp",
+  "short_name": "ZendoApp",
+  "description": "Packs, planificación, turnos y progreso de los alumnos del gimnasio.",
+  "lang": "es-AR",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0a07",
+  "theme_color": "#0b0a07",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
