@@ -714,6 +714,9 @@ function logrosBlock(st,admin){
   <div class="grid2"><div class="field"><label for="lg-f">Fecha</label><input class="inp mono" type="date" id="lg-f" value="${TODAY}"></div></div>
   <button class="btn" data-act="addLogro" data-sid="${st.id}">+ Agregar logro</button>`:''}`;
 }
+// El pack vigente del alumno es el de su último pago.
+function syncPack(sid){const st=stu(sid);if(!st)return;const last=D.pays.filter(p=>p.sid===sid).sort((a,b)=>b.date.localeCompare(a.date))[0];if(last)st.pack={size:last.size,start:last.date}}
+const payBtns=p=>`<button class="btn s" data-act="editPay" data-id="${p.id}">Editar</button><button class="btn s x" data-act="delPay" data-id="${p.id}" aria-label="Borrar pago">✕</button>`;
 function resStatusPill(r){
   if(r.status==='pend')return '<span class="pill w">PENDIENTE</span>';
   if(r.status==='rech')return '<span class="pill r">RECHAZADA</span>';
@@ -887,7 +890,7 @@ function vPanel(){
   </section>
 
   <section class="sec"><div class="sechead"><h2 class="h3">Pagos del mes</h2><button class="btn s" data-act="togPays">${U.showPays?'Ocultar':'Ver '+pays.length}</button></div>
-  ${U.showPays?(pays.length?`<div class="rows">${pays.map(p=>{const st=stu(p.sid);return `<div class="row"><div class="grow"><div class="t">${esc(st?fullName(st):'—')}</div><div class="s">${fd(p.date)} · PACK ${p.size}</div></div><div class="h3">${money(p.monto)}</div></div>`}).join('')}</div>`:'<div class="empty-s">Todavía no hay pagos este mes.</div>'):''}
+  ${U.showPays?(pays.length?`<div class="rows">${pays.map(p=>{const st=stu(p.sid);return `<div class="row" style="flex-wrap:wrap"><div class="grow"><div class="t">${esc(st?fullName(st):'—')}</div><div class="s">${fd(p.date)} · PACK ${p.size}</div></div><div class="h3">${money(p.monto)}</div><div class="btns">${payBtns(p)}</div></div>`}).join('')}</div>`:'<div class="empty-s">Todavía no hay pagos este mes.</div>'):''}
   </section>
   </div>`;
 }
@@ -896,7 +899,7 @@ function vAgenda(){
   const cal=calendar(ym,s=>{if(!isOpen(s))return{cls:'closed',k:'CERR'};const sl=slotsFor(s);const ok=sl.reduce((a,x)=>a+x.ok,0);const pe=sl.reduce((a,x)=>a+x.pend,0);
     return{cls:(s===U.agDay?'sel ':'')+(s===TODAY?'today ':'')+(pe?'has':''),act:'agDay',k:ok+(pe?' +'+pe+'?':'')}});
   const s=U.agDay;
-  const slots=slotsFor(s).map(x=>{const list=x.rs.map(r=>{const st=stu(r.sid);return `<div class="row" style="padding:8px 0"><div class="grow"><div class="t" style="font-size:14px">${esc(fullName(st))}</div></div>${resStatusPill(r)}${r.status==='pend'?`<button class="btn s g" data-act="approve" data-id="${r.id}" ${x.left<=0?'disabled':''}>OK</button><button class="btn s x" data-act="reject" data-id="${r.id}">✕</button>`:(!sessOfRes(r)?`<button class="btn s x" data-act="delRes" data-id="${r.id}" aria-label="Quitar">✕</button>`:'')}</div>`}).join('');
+  const slots=slotsFor(s).map(x=>{const list=x.rs.map(r=>{const st=stu(r.sid);return `<div class="row" style="padding:8px 0"><div class="grow"><div class="t" style="font-size:14px">${esc(fullName(st))}</div></div>${resStatusPill(r)}${r.status==='pend'?`<button class="btn s g" data-act="approve" data-id="${r.id}" ${x.left<=0?'disabled':''}>OK</button><button class="btn s x" data-act="reject" data-id="${r.id}">✕</button>`:`<button class="btn s x" data-act="delRes" data-id="${r.id}">Sacar</button>`}</div>`}).join('');
     return `<div class="slab dark" style="padding:12px 14px;display:flex;flex-direction:column;gap:6px"><div style="display:flex;align-items:center;gap:10px"><div class="h2" style="font-size:30px;flex:1">${x.h}<span class="eyebrow" style="margin-left:8px">${x.d} MIN</span></div>${x.occ?'<span class="pill r">OCUPADO</span>':`<span class="pill ${x.left<=0?'r':x.ok?'b':''}">${x.ok}/${C().cupo}</span>`}<button class="btn s ${x.occ?'g':'x'}" data-act="tgOcc" data-d="${s}" data-h="${x.h}">${x.occ?'Liberar':'Ocupado'}</button><button class="btn s" data-act="addToSlot" data-d="${s}" data-h="${x.h}" ${x.left<=0&&!x.occ?'disabled':''}>+ Alumno</button></div>${list?`<div class="rows">${list}</div>`:''}</div>`}).join('');
   return `<div class="stack">
   <div><div class="eyebrow">Agenda completa</div><h1 class="h1">Agenda</h1></div>
@@ -983,7 +986,7 @@ function vProfile(st){
     ${checksList(st,true)}
   </section>
 `,
-    pagos:()=>`  <section class="sec"><div class="sechead"><h2 class="h3">Pagos</h2></div>${pays.length?`<div class="rows">${pays.map(x=>`<div class="row"><div class="grow"><div class="t">${fd(x.date)} ${x.date.slice(0,4)}</div><div class="s">PACK ${x.size}</div></div><div class="h3">${money(x.monto)}</div></div>`).join('')}</div>`:'<div class="empty-s">Sin pagos registrados.</div>'}</section>
+    pagos:()=>`  <section class="sec"><div class="sechead"><h2 class="h3">Pagos</h2></div>${pays.length?`<div class="rows">${pays.map(x=>`<div class="row" style="flex-wrap:wrap"><div class="grow"><div class="t">${fd(x.date)} ${x.date.slice(0,4)}</div><div class="s">PACK ${x.size}</div></div><div class="h3">${money(x.monto)}</div><div class="btns">${payBtns(x)}</div></div>`).join('')}</div>`:'<div class="empty-s">Sin pagos registrados.</div>'}</section>
   <button class="btn g full" data-act="renew" data-sid="${st.id}">Registrar pago / renovar</button>`,
   }[pt]();
   return `<div class="stack">
@@ -1059,6 +1062,12 @@ function sheetHTML(){
     <div class="grid2"><div class="field"><label for="rn-m">Monto</label><input class="inp mono" type="number" id="rn-m" value="${C().precios[sz]}"></div><div class="field"><label for="rn-d">Fecha de pago</label><input class="inp mono" type="date" id="rn-d" value="${TODAY}"></div></div>
     <div class="eyebrow">El pack nuevo arranca en la fecha de pago y vence 30 días después. Las sesiones que no usó del pack anterior no se pasan.</div>
     <button class="btn g full" data-act="saveRenew">Guardar pago</button><button class="btn x full" data-act="closeSheet">Cancelar</button>`}
+  if(sh.type==='pay'){const p=D.pays.find(x=>x.id===sh.id);const st=stu(p.sid);const sz=sh.size||p.size;
+    body=`<div class="eyebrow">${esc(st?fullName(st):'')}</div><h2 class="h2">Editar pago</h2>
+    <div class="field"><label>Pack</label><div class="seg">${[8,12,16].map(n=>`<button class="${n===sz?'on':''}" data-act="paySize" data-n="${n}" style="flex:1">${n}</button>`).join('')}</div></div>
+    <div class="grid2"><div class="field"><label for="pe-m">Monto</label><input class="inp mono" type="number" id="pe-m" value="${sh.m??p.monto}"></div><div class="field"><label for="pe-d">Fecha de pago</label><input class="inp mono" type="date" id="pe-d" value="${sh.d||p.date}"></div></div>
+    <div class="eyebrow">Si es su último pago, también se corrige su pack actual.</div>
+    <button class="btn g full" data-act="savePay">Guardar</button><button class="btn x full" data-act="closeSheet">Cancelar</button>`}
   if(sh.type==='new'){body=`<h2 class="h2">Nuevo alumno</h2>
     <div class="grid2"><div class="field"><label for="ns-n">Nombre</label><input class="inp" id="ns-n"></div><div class="field"><label for="ns-a">Apellido</label><input class="inp" id="ns-a"></div></div>
     <div class="grid2"><div class="field"><label for="ns-b">Fecha de nacimiento</label><input class="inp mono" type="date" id="ns-b"></div><div class="field"><label for="ns-p">Peso (kg)</label><input class="inp mono" type="number" step="0.1" id="ns-p"></div></div>
@@ -1201,7 +1210,8 @@ const A={
   agDay(e){U.agDay=e.dataset.d;rerender()},
   addToSlot(e){U.sheet={type:'addSlot',d:e.dataset.d,h:e.dataset.h};rerender()},
   addSlotGo(e){const sh=U.sheet;D.res.push({id:nid(),sid:e.dataset.sid,date:sh.d,h:sh.h,status:'ok'});U.sheet=null;rerender();toast('Agregado al turno.')},
-  delRes(e){D.res=D.res.filter(r=>r.id!==e.dataset.id);rerender()},
+  delRes(e){const r=D.res.find(x=>x.id===e.dataset.id);if(!r)return;const st=stu(r.sid);const ss=sessOfRes(r);
+    U.sheet={type:'confirm',title:'¿Sacar a '+(st?fullName(st):'este alumno')+' del turno?',text:fdw(r.date)+' a las '+r.h+'.'+(ss?' Ya tenía la asistencia marcada: se borra esa asistencia'+(ss.status==='P'?', sus puntos'+(ss.sp?' y sus rounds':''):'')+' y la clase vuelve a su pack.':' Se libera el lugar.'),yes:'Sacar',run:'delResGo',id:r.id};rerender()},
   brush(e){U.brush=e.dataset.k||null;if(U.brush===U._lastBrush&&e.dataset.k){U.brush=null}U._lastBrush=U.brush;rerender()},
   cell(e){const st=stu(e.dataset.sid);const w=U.planWeek;const dow=+e.dataset.dow;
     if(!st.plan.repeat&&st.plan.month!==U.planMonth){st.plan.month=U.planMonth}
@@ -1244,6 +1254,13 @@ const A={
   closeProf(){U.prof=null;go()},
   renew(e){U.sheet={type:'renew',sid:e.dataset.sid};rerender()},
   renSize(e){U.sheet.size=+e.dataset.n;rerender()},
+  editPay(e){U.sheet={type:'pay',id:e.dataset.id};rerender()},
+  paySize(e){U.sheet.m=document.getElementById('pe-m').value;U.sheet.d=document.getElementById('pe-d').value;U.sheet.size=+e.dataset.n;rerender()},
+  savePay(){const p=D.pays.find(x=>x.id===U.sheet.id);if(!p){U.sheet=null;return rerender()}
+    const m=parseFloat(document.getElementById('pe-m').value);const d=document.getElementById('pe-d').value;if(isNaN(m))return toast('Poné el monto.');if(!d)return toast('Poné la fecha.');
+    p.monto=m;p.date=d;p.size=U.sheet.size||p.size;syncPack(p.sid);U.sheet=null;rerender();toast('Pago corregido.')},
+  delPay(e){const p=D.pays.find(x=>x.id===e.dataset.id);const st=stu(p.sid);
+    U.sheet={type:'confirm',title:'¿Borrar este pago?',text:(st?fullName(st)+' · ':'')+fd(p.date)+' · pack '+p.size+' · '+money(p.monto)+'. Si era su último pago, su pack vuelve al pago anterior.',yes:'Borrar',run:'delPayGo',id:p.id};rerender()},
   saveRenew(){const st=stu(U.sheet.sid);const size=U.sheet.size||st.pack.size;const m=+document.getElementById('rn-m').value||0;const d=document.getElementById('rn-d').value||TODAY;
     st.pack={size,start:d};D.pays.push({id:nid(),sid:st.id,date:d,size,monto:m});U.sheet=null;rerender();toast('Pago guardado. Pack de '+size+' hasta el '+fd(add(d,30))+'.')},
   newStudent(){U.sheet={type:'new',size:12};rerender()},
@@ -1259,6 +1276,8 @@ const A={
   delRec(e){const st=stu(e.dataset.sid);st.records=st.records.filter(r=>r.id!==e.dataset.id);rerender()},
   delStudent(e){const st=stu(e.dataset.sid);U.sheet={type:'confirm',title:'¿Eliminar a '+fullName(st)+'?',text:'Se borran su pack, sesiones, reservas, plan y récords. No se puede deshacer.',yes:'Eliminar',run:'delStudentGo',sid:st.id};rerender()},
   confirmYes(){const sh=U.sheet;U.sheet=null;if(sh.run==='delStudentGo'){D.students=D.students.filter(s=>s.id!==sh.sid);D.sessions=D.sessions.filter(s=>s.sid!==sh.sid);D.res=D.res.filter(s=>s.sid!==sh.sid);U.prof=null;go()}
+    if(sh.run==='delResGo'){D.sessions=D.sessions.filter(x=>x.resId!==sh.id);D.res=D.res.filter(r=>r.id!==sh.id);rerender();toast('Alumno sacado del turno.')}
+    if(sh.run==='delPayGo'){const p=D.pays.find(x=>x.id===sh.id);D.pays=D.pays.filter(x=>x.id!==sh.id);if(p)syncPack(p.sid);rerender();toast('Pago borrado.')}
     if(sh.run==='weekNextGo'){const w=U.planWeek;D.students.forEach(st=>{st.plan.weeks[w+1]=JSON.parse(JSON.stringify(st.plan.weeks[w]))});U.planWeek=w+1;rerender();toast('Semana copiada para todos.')}
     if(sh.run==='resetGo'){D=seed();U.prof=null;U.tab='panel';go();toast('Datos de ejemplo restaurados.')}},
   tgAus(){C().ausenteDescuenta=!C().ausenteDescuenta;rerender()},
