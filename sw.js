@@ -1,6 +1,6 @@
 // ZendoApp service worker: permite instalar la app y abrirla sin conexión.
 // Si cambiás algo en la app, subí este número para forzar la actualización.
-const VERSION = 'zendoapp-v9';
+const VERSION = 'zendoapp-v10';
 const SHELL = ['/', '/index.html', '/config.js', '/manifest.json',
   '/icons/icon-192.png', '/icons/icon-512.png', '/icons/apple-touch-icon.png'];
 
