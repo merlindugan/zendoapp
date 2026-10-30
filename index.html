@@ -541,8 +541,13 @@ const stu=id=>D.students.find(s=>s.id===id);
 const fullName=s=>s.nombre+' '+s.apellido;
 const isOpen=s=>C().dias.includes(P(s).getDay());
 const durOf=h=>(C().turnos.find(t=>t.h===h)||{d:60}).d;
+const PLANES=[8,12,16,0]; // 0 = plan Amigos (gratis, ilimitado, no vence)
+const planName=n=>n===0?'AMIGOS':String(n);
+const packLabel=n=>n===0?'PLAN AMIGOS':'PACK '+n;
 function pack(st){
   const p=st.pack;if(!p)return null;
+  if(p.size===0){const inPack=D.sessions.filter(s=>s.sid===st.id&&s.date>=p.start).sort((a,b)=>(a.date+a.h).localeCompare(b.date+b.h));
+    return {amigos:true,size:0,start:p.start,end:null,inPack,used:inPack.filter(s=>s.status==='P'),rem:Infinity,dl:Infinity,expired:false}}
   const end=add(p.start,30);
   const inPack=D.sessions.filter(s=>s.sid===st.id&&s.date>=p.start&&s.date<end).sort((a,b)=>(a.date+a.h).localeCompare(b.date+b.h));
   const used=inPack.filter(s=>s.status==='P'||(C().ausenteDescuenta&&s.status==='A'));
@@ -582,7 +587,15 @@ function alerts(){
     const lp=lastPresent(st);if(!lp||diff(TODAY,lp)>=c.inactivo)out.inact.push(st)});
   return out;
 }
-const monthPays=ym=>D.pays.filter(p=>p.date.slice(0,7)===ym).sort((a,b)=>b.date.localeCompare(a.date));
+const payDay=p=>p.paidAt||p.date;
+const monthPays=ym=>D.pays.filter(p=>payDay(p).slice(0,7)===ym||(p.pend&&p.date.slice(0,7)===ym)).sort((a,b)=>payDay(b).localeCompare(payDay(a)));
+const monthIncome=ym=>D.pays.filter(p=>!p.pend&&payDay(p).slice(0,7)===ym).reduce((a,p)=>a+(+p.monto||0),0);
+const debtsOf=st=>D.pays.filter(p=>p.sid===st.id&&p.pend).sort((a,b)=>a.date.localeCompare(b.date));
+const debtDays=st=>{const d=debtsOf(st)[0];return d?diff(TODAY,d.date):null};
+const debtors=()=>D.students.filter(st=>debtsOf(st).length).sort((a,b)=>debtDays(b)-debtDays(a));
+const debtPill=st=>{const n=debtDays(st);return n==null?'':`<span class="pill r">DEBE ${n<=0?'DESDE HOY':'HACE '+n+(n===1?' DÍA':' DÍAS')}</span>`};
+function nextBday(st){if(!st.nac)return null;const[y,m,d]=st.nac.split('-').map(Number);const t=P(TODAY);let n=new Date(t.getFullYear(),m-1,d);if(n<t)n=new Date(t.getFullYear()+1,m-1,d);return{days:Math.round((n-t)/864e5),date:iso(n)}}
+const totalPres=st=>D.sessions.filter(s=>s.sid===st.id&&s.status==='P').length;
 
 /* ============ PIEZAS ============ */
 const code=(k,cls='')=>`<span class="code ${cls}" title="${AN[k]}">${k}</span>`;
@@ -746,11 +759,11 @@ function vHoy(st){
   return `<div class="stack">
   <div><div class="eyebrow">Hola</div><h1 class="h1">${esc(st.nombre)}</h1></div>
   <section class="slab">
-    <div class="eyebrow">Tu pack · ${p.size} sesiones</div>
+    ${p.amigos?`<div class="eyebrow">Tu plan</div><div class="areabig" style="margin:10px 0">Amigos</div><div class="meta"><span>CLASES LIBRES · NO VENCE</span><span>${p.used.length} USADAS</span></div>`:`<div class="eyebrow">Tu pack · ${p.size} sesiones</div>
     ${p.expired?`<div class="bignum"><span class="n" style="font-size:clamp(70px,22vw,110px)">VENCIDO</span></div><div class="meta"><span>VENCIÓ EL ${fd(p.end)}</span><span class="dim">LAS CLASES NO USADAS NO SE ACUMULAN</span></div>`:
     `<div class="bignum" style="margin:10px 0 14px"><span class="n ${p.rem<=C().alertaSesiones?'gold':''}">${p.rem}</span><span class="l">quedan<br><span class="dim">de ${p.size}</span></span></div>
     ${packCells(p)}
-    <div class="meta" style="margin-top:12px"><span>PAGASTE ${fd(p.start)}</span><span class="${p.dl<=C().alertaVence?'gold':''}">VENCE ${fd(p.end)} · EN ${p.dl} ${p.dl===1?'DÍA':'DÍAS'}</span></div>`}
+    <div class="meta" style="margin-top:12px"><span>PAGASTE ${fd(p.start)}</span><span class="${p.dl<=C().alertaVence?'gold':''}">VENCE ${fd(p.end)} · EN ${p.dl} ${p.dl===1?'DÍA':'DÍAS'}</span></div>`}`}
   </section>
   <section class="slab gold">
     <div class="eyebrow">Hoy toca · ${fdw(TODAY)}</div>
@@ -851,7 +864,7 @@ function vAsist(st){
   return `<div class="stack">
   <div><div class="eyebrow">Tus asistencias</div><h1 class="h1">Asistencia</h1></div>
   <section class="sec">${attBlock(st)}</section>
-  <section class="sec"><div class="sechead"><h2 class="h3">Este pack</h2><span class="eyebrow">${p.used.length} de ${p.size} usadas</span></div>${usedList(st,p)}</section>
+  <section class="sec"><div class="sechead"><h2 class="h3">${p.amigos?'Plan Amigos':'Este pack'}</h2><span class="eyebrow">${p.amigos?p.used.length+' usadas':p.used.length+' de '+p.size+' usadas'}</span></div>${usedList(st,p)}</section>
   </div>`;
 }
 function vRank(me){
@@ -878,22 +891,25 @@ function vRank(me){
 
 /* ============ VISTAS ADMIN ============ */
 function vPanel(){
-  const ym=TODAY.slice(0,7);const pays=monthPays(ym);const inc=pays.reduce((a,p)=>a+p.monto,0);
+  const ym=TODAY.slice(0,7);const pays=monthPays(ym);const inc=monthIncome(ym);const deb=debtors();
   const pe=pending(),tm=toMark(),al=alerts();
   const tile=(id,n,l)=>`<button class="tile ${n?'hot':'zero'}" data-act="panelGo" data-id="${id}"><span class="n">${n}</span><span class="l">${l}</span></button>`;
   const todaySlots=slotsFor(TODAY);
-  const stRow=(st,right)=>`<div class="row"><button class="grow" style="text-align:left" data-act="openProf" data-sid="${st.id}"><div class="t">${esc(fullName(st))}</div><div class="s">${(()=>{const p=pack(st);return 'PACK '+p.size+' · QUEDAN '+p.rem+' · VENCE '+fd(p.end)})()}</div></button>${right}</div>`;
+  const stRow=(st,right)=>`<div class="row"><button class="grow" style="text-align:left" data-act="openProf" data-sid="${st.id}"><div class="t">${esc(fullName(st))}</div><div class="s">${(()=>{const p=pack(st);return p.amigos?'PLAN AMIGOS':'PACK '+p.size+' · QUEDAN '+p.rem+' · VENCE '+fd(p.end)})()}</div></button>${right}</div>`;
   return `<div class="stack">
   ${notifBox(false)}
-  <section class="slab gold"><div class="eyebrow">Ingresos · ${MONL[P(TODAY).getMonth()]}</div><div class="areabig" style="font-size:clamp(52px,16vw,88px)">${money(inc)}</div><div class="meta" style="margin-top:8px"><span>${pays.length} PAGOS</span><span>${D.students.length} ALUMNOS</span></div></section>
+  <section class="slab gold"><div class="eyebrow">Ingresos · ${MONL[P(TODAY).getMonth()]}</div><div class="areabig" style="font-size:clamp(52px,16vw,88px)">${money(inc)}</div><div class="meta" style="margin-top:8px"><span>${pays.filter(p=>!p.pend).length} PAGOS</span>${deb.length?`<span>${deb.length} DEBEN</span>`:''}<span>${D.students.length} ALUMNOS</span></div></section>
   <div class="tiles">
+    ${tile('deu',deb.length,'Deben la cuota')}
     ${tile('sol',pe.length,'Solicitudes de turno')}
     ${tile('mar',tm.length,'Asistencia por marcar')}
     ${tile('ven',al.vence.length+al.vencido.length,'Packs por vencer o vencidos')}
     ${tile('poc',al.pocas.length,'Con pocas sesiones')}
     ${tile('ina',al.inact.length,'Sin venir hace '+C().inactivo+'+ días')}
-    ${tile('hoy',todaySlots.reduce((a,x)=>a+x.ok,0),'Reservas hoy')}
   </div>
+
+  ${deb.length?`<section class="sec" id="p-deu"><div class="sechead"><h2 class="h3">Deben la cuota</h2><span class="eyebrow">${deb.length}</span></div>
+  <div class="rows">${deb.map(st=>{const d=debtsOf(st)[0];return `<div class="row" style="flex-wrap:wrap"><button class="grow" style="text-align:left" data-act="openProf" data-sid="${st.id}"><div class="t">${esc(fullName(st))}</div><div class="s">${packLabel(d.size)} · DESDE ${fd(d.date)} · ${money(d.monto)}</div></button>${debtPill(st)}<button class="btn s g" data-act="cobrar" data-id="${d.id}">Cobrar</button></div>`}).join('')}</div></section>`:''}
 
   <section class="sec" id="p-sol"><div class="sechead"><h2 class="h3">Solicitudes</h2><span class="eyebrow">${pe.length}</span></div>
   ${pe.length?`<div class="rows">${pe.map(r=>{const st=stu(r.sid);const x=slotsFor(r.date).find(s=>s.h===r.h);return `<div class="row" style="flex-wrap:wrap"><div class="grow"><div class="t">${esc(fullName(st))}</div><div class="s">${fdw(r.date)} · ${r.h} · ${x?x.ok:0}/${C().cupo} OCUPADO</div></div><div class="btns"><button class="btn s g" data-act="approve" data-id="${r.id}" ${x&&x.left<=0?'disabled':''}>Confirmar</button><button class="btn s x" data-act="reject" data-id="${r.id}">Rechazar</button></div></div>`}).join('')}</div>`:'<div class="empty-s">Sin solicitudes nuevas.</div>'}
@@ -927,7 +943,7 @@ function vPanel(){
   </section>
 
   <section class="sec"><div class="sechead"><h2 class="h3">Pagos del mes</h2><button class="btn s" data-act="togPays">${U.showPays?'Ocultar':'Ver '+pays.length}</button></div>
-  ${U.showPays?(pays.length?`<div class="rows">${pays.map(p=>{const st=stu(p.sid);return `<div class="row" style="flex-wrap:wrap"><div class="grow"><div class="t">${esc(st?fullName(st):'—')}</div><div class="s">${fd(p.date)} · PACK ${p.size}</div></div><div class="h3">${money(p.monto)}</div><div class="btns">${payBtns(p)}</div></div>`}).join('')}</div>`:'<div class="empty-s">Todavía no hay pagos este mes.</div>'):''}
+  ${U.showPays?(pays.length?`<div class="rows">${pays.map(p=>{const st=stu(p.sid);return `<div class="row" style="flex-wrap:wrap"><div class="grow"><div class="t">${esc(st?fullName(st):'—')}</div><div class="s">${fd(payDay(p))} · ${packLabel(p.size)}</div></div><div class="h3" style="${p.pend?'color:var(--alert)':''}">${money(p.monto)}</div><div class="btns">${p.pend?'<span class="pill r">DEBE</span>':''}${payBtns(p)}</div></div>`}).join('')}</div>`:'<div class="empty-s">Todavía no hay pagos este mes.</div>'):''}
   </section>
   </div>`;
 }
@@ -974,14 +990,29 @@ function vPlanes(){
 }
 function vAlumnos(){
   if(U.prof)return vProfile(stu(U.prof));
-  const list=[...D.students].sort((a,b)=>a.nombre.localeCompare(b.nombre)).map(st=>{const p=pack(st);const lp=lastPresent(st);
-    const pills=[];if(p.expired)pills.push('<span class="pill r">VENCIDO</span>');else{if(p.dl<=C().alertaVence)pills.push(`<span class="pill w">VENCE ${p.dl}D</span>`);if(p.rem<=C().alertaSesiones)pills.push(`<span class="pill w">QUEDAN ${p.rem}</span>`)}
+  const by=U.alSort||'az';
+  const SORTS=[['az','A–Z'],['pago','PRÓXIMO PAGO'],['cumple','CUMPLEAÑOS'],['asis','ASISTENCIAS']];
+  const key=st=>{const p=pack(st);
+    if(by==='pago'){const dd=debtDays(st);if(dd!=null)return -1e6-dd;return p.amigos?1e9:p.dl}
+    if(by==='cumple'){const b=nextBday(st);return b?b.days:1e9}
+    if(by==='asis')return -totalPres(st);
+    return 0};
+  const sorted=[...D.students].sort((a,b)=>key(a)-key(b)||a.nombre.localeCompare(b.nombre)||a.apellido.localeCompare(b.apellido));
+  const list=sorted.map(st=>{const p=pack(st);const lp=lastPresent(st);
+    const pills=[];const dp=debtPill(st);if(dp)pills.push(dp);
+    if(p.amigos)pills.push('<span class="pill">AMIGOS</span>');
+    else if(p.expired)pills.push('<span class="pill r">VENCIDO</span>');else{if(p.dl<=C().alertaVence)pills.push(`<span class="pill w">VENCE ${p.dl}D</span>`);if(p.rem<=C().alertaSesiones)pills.push(`<span class="pill w">QUEDAN ${p.rem}</span>`)}
     if(!lp||diff(TODAY,lp)>=C().inactivo)pills.push('<span class="pill r">INACTIVO</span>');if(st.clase&&isCombat(st))pills.unshift(`<span class="pill w">${claseN(st.clase).toUpperCase()}</span>`);if(st.rango)pills.unshift(`<span class="pill b">${st.rango}</span>`);
-    return `<button class="row" style="width:100%;text-align:left" data-act="openProf" data-sid="${st.id}"><div class="idx" style="font-size:32px;width:56px">${p.expired?'—':p.rem}<div class="s mono dim" style="font-size:10px">/${p.size}</div></div><div class="grow"><div class="t" style="font-size:17px">${esc(fullName(st))}</div><div class="s">${esc(st.disc.toUpperCase())} · VENCE ${fd(p.end)}</div><div class="codes" style="margin-top:6px">${pills.join('')}</div></div><span class="dim h3">›</span></button>`}).join('');
+    let sub=esc(st.disc.toUpperCase())+' · '+(p.amigos?'PLAN AMIGOS':'VENCE '+fd(p.end));
+    if(by==='cumple'){const b=nextBday(st);sub=b?(b.days===0?'¡CUMPLE HOY!':'CUMPLE EN '+b.days+(b.days===1?' DÍA':' DÍAS')+' · '+fd(b.date)+' · '+(age(st.nac)+(b.days===0?0:1))+' AÑOS'):'SIN FECHA DE NACIMIENTO'}
+    if(by==='asis')sub=totalPres(st)+' ASISTENCIAS EN TOTAL';
+    const big=p.amigos?'∞':(p.expired?'—':p.rem);
+    return `<button class="row" style="width:100%;text-align:left" data-act="openProf" data-sid="${st.id}"><div class="idx" style="font-size:32px;width:56px">${big}<div class="s mono dim" style="font-size:10px">${p.amigos?'AMIGOS':'/'+p.size}</div></div><div class="grow"><div class="t" style="font-size:17px">${esc(fullName(st))}</div><div class="s">${sub}</div><div class="codes" style="margin-top:6px">${pills.join('')}</div></div><span class="dim h3">›</span></button>`}).join('');
   return `<div class="stack">
-  <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px"><div><div class="eyebrow">${D.students.length} alumnos</div><h1 class="h1">Alumnos</h1></div><button class="btn g" data-act="newStudent">+ Nuevo</button></div>
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><div class="eyebrow">${D.students.length} alumnos</div><h1 class="h1">Alumnos</h1></div><button class="btn g" data-act="newStudent">+ Nuevo</button></div>
+  <div class="lbtabs">${SORTS.map(([k,l])=>`<button class="${by===k?'on':''}" data-act="alSort" data-k="${k}">${l}</button>`).join('')}</div>
   <div class="eyebrow">Número grande = sesiones que le quedan</div>
-  <div class="rows">${list}</div>
+  <div class="rows">${list||'<div class="empty-s">Todavía no hay alumnos. Tocá + Nuevo para cargar el primero.</div>'}</div>
   </div>`;
 }
 function vProfile(st){
@@ -991,9 +1022,10 @@ function vProfile(st){
   if(U.ptab==='camino'&&!hasCamino(st))U.ptab='res';
   const body={
     res:()=>`  <section class="slab">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div class="eyebrow">Pack ${p.size} · pagó ${fd(p.start)}</div>${p.expired?'<span class="pill r">VENCIDO</span>':`<span class="pill ${p.dl<=C().alertaVence?'w':''}">VENCE ${fd(p.end)}</span>`}</div>
+    ${debtsOf(st).length?`<div class="slab" style="border-color:var(--alert);padding:14px;margin-bottom:14px;display:flex;flex-direction:column;gap:10px">${debtsOf(st).map(d=>`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><div class="grow"><div class="h3" style="color:var(--alert)">Debe ${money(d.monto)}</div><div class="s mono dim" style="font-size:12px">${packLabel(d.size)} · DESDE ${fd(d.date)} · HACE ${Math.max(0,diff(TODAY,d.date))} DÍAS</div></div><button class="btn s g" data-act="cobrar" data-id="${d.id}">Cobrar</button></div>`).join('')}</div>`:''}
+    ${p.amigos?`<div class="eyebrow">Plan Amigos · desde ${fd(p.start)}</div><div class="areabig" style="margin:8px 0">Amigos</div><div class="meta"><span>GRATIS · CLASES LIBRES · NO VENCE</span><span>${p.used.length} USADAS</span></div>`:`<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div class="eyebrow">Pack ${p.size} · desde ${fd(p.start)}</div>${p.expired?'<span class="pill r">VENCIDO</span>':`<span class="pill ${p.dl<=C().alertaVence?'w':''}">VENCE ${fd(p.end)}</span>`}</div>
     <div class="bignum" style="margin:8px 0 12px"><span class="n" style="font-size:clamp(90px,26vw,130px)">${p.expired?0:p.rem}</span><span class="l">quedan<br><span class="dim">de ${p.size}</span></span></div>
-    ${packCells(p)}
+    ${packCells(p)}`}
     <div class="meta" style="margin-top:12px"><span>ÚLTIMA VEZ: ${lp?fd(lp)+' ('+diff(TODAY,lp)+' DÍAS)':'NUNCA'}</span></div>
     <div class="btns" style="margin-top:14px"><button class="btn g" data-act="renew" data-sid="${st.id}">Registrar pago / renovar</button></div>
   </section>
@@ -1015,7 +1047,7 @@ function vProfile(st){
   <section class="sec"><div class="sechead"><h2 class="h3">Logros</h2></div>${logrosBlock(st,true)}</section>
 `,
     asis:()=>`  <section class="sec"><div class="sechead"><h2 class="h3">Asistencia</h2><span class="eyebrow">Últimas 4 semanas</span></div>${attBlock(st)}</section>
-  <section class="sec"><div class="sechead"><h2 class="h3">Sesiones del pack</h2><span class="eyebrow">${p.used.length}/${p.size} ${isCombat(st)?' · RDS = rounds de sparring':''}</span></div>${usedList(st,p,true)}</section>
+  <section class="sec"><div class="sechead"><h2 class="h3">${p.amigos?'Sesiones (plan Amigos)':'Sesiones del pack'}</h2><span class="eyebrow">${p.amigos?p.used.length:p.used.length+'/'+p.size} ${isCombat(st)?' · RDS = rounds de sparring':''}</span></div>${usedList(st,p,true)}</section>
 `,
     chk:()=>`  <section class="sec"><div class="sechead"><h2 class="h3">Chequeos físicos</h2><span class="eyebrow">▲▼ = cambio vs. el anterior</span></div>
     <button class="btn g full" data-act="newCheck" data-sid="${st.id}">+ Nuevo chequeo</button>
@@ -1025,7 +1057,7 @@ function vProfile(st){
   </section>
 `,
     camino:()=>`<button class="back" data-act="ptab" data-k="res">◀ RESUMEN</button>${caminoBody(st)}`,
-    pagos:()=>`  <section class="sec"><div class="sechead"><h2 class="h3">Pagos</h2></div>${pays.length?`<div class="rows">${pays.map(x=>`<div class="row" style="flex-wrap:wrap"><div class="grow"><div class="t">${fd(x.date)} ${x.date.slice(0,4)}</div><div class="s">PACK ${x.size}</div></div><div class="h3">${money(x.monto)}</div><div class="btns">${payBtns(x)}</div></div>`).join('')}</div>`:'<div class="empty-s">Sin pagos registrados.</div>'}</section>
+    pagos:()=>`  <section class="sec"><div class="sechead"><h2 class="h3">Pagos</h2></div>${pays.length?`<div class="rows">${pays.map(x=>`<div class="row" style="flex-wrap:wrap"><div class="grow"><div class="t">${fd(x.date)} ${x.date.slice(0,4)}</div><div class="s">${packLabel(x.size)}${x.pend?' · NO PAGÓ TODAVÍA':(x.paidAt&&x.paidAt!==x.date?' · COBRADO '+fd(x.paidAt):'')}</div></div><div class="h3" style="${x.pend?'color:var(--alert)':''}">${money(x.monto)}</div><div class="btns">${x.pend?`<button class="btn s g" data-act="cobrar" data-id="${x.id}">Cobrar</button>`:''}${payBtns(x)}</div></div>`).join('')}</div>`:'<div class="empty-s">Sin pagos registrados.</div>'}</section>
   <button class="btn g full" data-act="renew" data-sid="${st.id}">Registrar pago / renovar</button>`,
   }[pt]();
   return `<div class="stack">
@@ -1095,25 +1127,33 @@ function sheetHTML(){
     <div class="slab dark" style="display:flex;flex-direction:column;gap:10px"><div class="h3">Copiar el plan del mes de otro alumno</div>
       <div style="display:flex;gap:6px"><select class="inp" id="copyFrom" style="flex:1">${D.students.filter(x=>x.id!==st.id).map(x=>`<option value="${x.id}">${esc(fullName(x))}</option>`).join('')}</select><button class="btn" data-act="copyPlan">Copiar</button></div></div>
     <button class="btn full" data-act="closeSheet">Cerrar</button>`}
-  if(sh.type==='renew'){const st=stu(sh.sid);const sz=sh.size||st.pack.size;
+  if(sh.type==='renew'){const st=stu(sh.sid);const sz=sh.size??st.pack.size;
     body=`<div class="eyebrow">${esc(fullName(st))}</div><h2 class="h2">Registrar pago</h2>
-    <div class="field"><label>Pack</label><div class="seg">${[8,12,16].map(n=>`<button class="${n===sz?'on':''}" data-act="renSize" data-n="${n}" style="flex:1">${n}</button>`).join('')}</div></div>
-    <div class="grid2"><div class="field"><label for="rn-m">Monto</label><input class="inp mono" type="number" id="rn-m" value="${C().precios[sz]}"></div><div class="field"><label for="rn-d">Fecha de pago</label><input class="inp mono" type="date" id="rn-d" value="${TODAY}"></div></div>
-    <div class="eyebrow">El pack nuevo arranca en la fecha de pago y vence 30 días después. Las sesiones que no usó del pack anterior no se pasan.</div>
+    <div class="field"><label>Plan</label><div class="seg">${PLANES.map(n=>`<button class="${n===sz?'on':''}" data-act="renSize" data-n="${n}" style="flex:1">${planName(n)}</button>`).join('')}</div></div>
+    ${sz===0?'<div class="eyebrow">Plan Amigos: gratis, clases libres y no vence. Queda así hasta que le registres otro pack.</div><div class="field"><label for="rn-d">Desde</label><input class="inp mono" type="date" id="rn-d" value="'+TODAY+'"></div>':`<div class="grid2"><div class="field"><label for="rn-m">Monto</label><input class="inp mono" type="number" id="rn-m" value="${C().precios[sz]}"></div><div class="field"><label for="rn-d">${sh.debe?'Tenía que pagar el':'Fecha de pago'}</label><input class="inp mono" type="date" id="rn-d" value="${TODAY}"></div></div>
+    ${sz===0?'':`<div class="switch"><div><div class="t" style="font-weight:700">No pagó todavía</div><div class="s dim" style="font-size:13px">El pack arranca igual en esa fecha y queda como deuda hasta que toques Cobrar</div></div><button class="tg ${sh.debe?'on':''}" data-act="tgDebe" aria-label="No pagó todavía"></button></div>`}
+    <div class="eyebrow">El pack nuevo arranca en esa fecha y vence 30 días después. Las sesiones que no usó del pack anterior no se pasan.</div>`}
     <button class="btn g full" data-act="saveRenew">Guardar pago</button><button class="btn x full" data-act="closeSheet">Cancelar</button>`}
-  if(sh.type==='pay'){const p=D.pays.find(x=>x.id===sh.id);const st=stu(p.sid);const sz=sh.size||p.size;
+  if(sh.type==='pay'){const p=D.pays.find(x=>x.id===sh.id);const st=stu(p.sid);const sz=sh.size??p.size;
     body=`<div class="eyebrow">${esc(st?fullName(st):'')}</div><h2 class="h2">Editar pago</h2>
-    <div class="field"><label>Pack</label><div class="seg">${[8,12,16].map(n=>`<button class="${n===sz?'on':''}" data-act="paySize" data-n="${n}" style="flex:1">${n}</button>`).join('')}</div></div>
+    <div class="field"><label>Plan</label><div class="seg">${PLANES.map(n=>`<button class="${n===sz?'on':''}" data-act="paySize" data-n="${n}" style="flex:1">${planName(n)}</button>`).join('')}</div></div>
     <div class="grid2"><div class="field"><label for="pe-m">Monto</label><input class="inp mono" type="number" id="pe-m" value="${sh.m??p.monto}"></div><div class="field"><label for="pe-d">Fecha de pago</label><input class="inp mono" type="date" id="pe-d" value="${sh.d||p.date}"></div></div>
     <div class="eyebrow">Si es su último pago, también se corrige su pack actual.</div>
     <button class="btn g full" data-act="savePay">Guardar</button><button class="btn x full" data-act="closeSheet">Cancelar</button>`}
+  if(sh.type==='cobrar'){const p=D.pays.find(x=>x.id===sh.id);const st=stu(p.sid);
+    body=`<div class="eyebrow">${esc(st?fullName(st):'')}</div><h2 class="h2">Cobrar cuota</h2>
+    <div class="dim">${packLabel(p.size)} desde el ${fd(p.date)}. Debe hace ${Math.max(0,diff(TODAY,p.date))} días.</div>
+    <div class="grid2"><div class="field"><label for="cb-m">Monto cobrado</label><input class="inp mono" type="number" id="cb-m" value="${p.monto}"></div><div class="field"><label for="cb-d">Fecha de cobro</label><input class="inp mono" type="date" id="cb-d" value="${TODAY}"></div></div>
+    <div class="eyebrow">El pack no cambia: sigue contando desde el ${fd(p.date)}. El ingreso se suma al mes del cobro.</div>
+    <button class="btn g full" data-act="saveCobro">Cobrado</button><button class="btn x full" data-act="closeSheet">Cancelar</button>`}
   if(sh.type==='new'){body=`<h2 class="h2">Nuevo alumno</h2>
     <div class="grid2"><div class="field"><label for="ns-n">Nombre</label><input class="inp" id="ns-n"></div><div class="field"><label for="ns-a">Apellido</label><input class="inp" id="ns-a"></div></div>
     <div class="grid2"><div class="field"><label for="ns-b">Fecha de nacimiento</label><input class="inp mono" type="date" id="ns-b"></div><div class="field"><label for="ns-p">Peso (kg)</label><input class="inp mono" type="number" step="0.1" id="ns-p"></div></div>
     <div class="grid2"><div class="field"><label for="ns-h">Altura (cm)</label><input class="inp mono" type="number" step="1" id="ns-h"></div></div>
     <div class="field"><label for="ns-d">Disciplina</label><select class="inp" id="ns-d"><option>Preparación física</option><option>Boxeo</option><option>MMA</option></select></div>
-    <div class="field"><label>Pack</label><div class="seg">${[8,12,16].map(n=>`<button class="${n===(sh.size||12)?'on':''}" data-act="nsSize" data-n="${n}" style="flex:1">${n}</button>`).join('')}</div></div>
-    <div class="grid2"><div class="field"><label for="ns-m">Monto pagado</label><input class="inp mono" type="number" id="ns-m" value="${C().precios[sh.size||12]}"></div><div class="field"><label for="ns-f">Fecha de pago</label><input class="inp mono" type="date" id="ns-f" value="${TODAY}"></div></div>
+    ${(()=>{const sz=sh.size??12;return `<div class="field"><label>Plan</label><div class="seg">${PLANES.map(n=>`<button class="${n===sz?'on':''}" data-act="nsSize" data-n="${n}" style="flex:1">${planName(n)}</button>`).join('')}</div></div>
+    <div class="grid2">${sz===0?'':`<div class="field"><label for="ns-m">Monto</label><input class="inp mono" type="number" id="ns-m" value="${C().precios[sz]}"></div>`}<div class="field"><label for="ns-f">${sz===0?'Desde':(sh.debe?'Tenía que pagar el':'Fecha de pago')}</label><input class="inp mono" type="date" id="ns-f" value="${TODAY}"></div></div>
+    ${sz===0?'':`<div class="switch"><div><div class="t" style="font-weight:700">No pagó todavía</div><div class="s dim" style="font-size:13px">El pack arranca igual en esa fecha y queda como deuda hasta que toques Cobrar</div></div><button class="tg ${sh.debe?'on':''}" data-act="tgDebe" aria-label="No pagó todavía"></button></div>`}`})()}
     <div class="eyebrow">La clave del alumno es nombre + apellido, todo junto y en minúscula.</div>
     <button class="btn g full" data-act="saveNew">Crear alumno</button><button class="btn x full" data-act="closeSheet">Cancelar</button>`}
   if(sh.type==='check'){const st=stu(sh.sid);const c=sh.cid?(st.checks||[]).find(x=>x.id===sh.cid)||{}:{};
@@ -1132,7 +1172,7 @@ function sheetHTML(){
     <button class="btn g full" data-act="saveEdit">Guardar</button><button class="btn x full" data-act="closeSheet">Cancelar</button>`}
   if(sh.type==='addSlot'){const x=slotsFor(sh.d).find(s=>s.h===sh.h);const inSlot=x.rs.map(r=>r.sid);
     body=`<div class="eyebrow">${fdw(sh.d)} · ${sh.h}</div><h2 class="h2">Agregar alumno</h2>
-    <div class="rows">${D.students.filter(s=>!inSlot.includes(s.id)).map(s=>`<button class="row" style="width:100%;text-align:left" data-act="addSlotGo" data-sid="${s.id}"><div class="grow t">${esc(fullName(s))}</div><span class="pill">QUEDAN ${pack(s).rem}</span></button>`).join('')}</div>
+    <div class="rows">${D.students.filter(s=>!inSlot.includes(s.id)).map(s=>`<button class="row" style="width:100%;text-align:left" data-act="addSlotGo" data-sid="${s.id}"><div class="grow t">${esc(fullName(s))}</div><span class="pill">${pack(s).amigos?'AMIGOS':'QUEDAN '+pack(s).rem}</span></button>`).join('')}</div>
     <button class="btn x full" data-act="closeSheet">Cancelar</button>`}
   if(sh.type==='confirm'){body=`<h2 class="h2">${esc(sh.title)}</h2><div class="dim">${esc(sh.text)}</div><div class="btns"><button class="btn g" data-act="confirmYes">${esc(sh.yes)}</button><button class="btn x" data-act="closeSheet">Cancelar</button></div>`}
   return `<div class="scrim" data-act="scrim"><div class="sheet" role="dialog" aria-modal="true">${body}</div></div>`;
@@ -1293,24 +1333,32 @@ const A={
   openProf(e){U.tab='alumnos';U.prof=e.dataset.sid;U.ptab='res';U.ckM=null;U.ckCmp=null;go()},
   closeProf(){U.prof=null;go()},
   renew(e){U.sheet={type:'renew',sid:e.dataset.sid};rerender()},
-  renSize(e){U.sheet.size=+e.dataset.n;rerender()},
   editPay(e){U.sheet={type:'pay',id:e.dataset.id};rerender()},
-  paySize(e){U.sheet.m=document.getElementById('pe-m').value;U.sheet.d=document.getElementById('pe-d').value;U.sheet.size=+e.dataset.n;rerender()},
+  paySize(e){U.sheet.m=document.getElementById('pe-m').value;U.sheet.d=document.getElementById('pe-d').value;U.sheet.size=+e.dataset.n;if(U.sheet.size===0)U.sheet.m='0';rerender()},
   savePay(){const p=D.pays.find(x=>x.id===U.sheet.id);if(!p){U.sheet=null;return rerender()}
     const m=parseFloat(document.getElementById('pe-m').value);const d=document.getElementById('pe-d').value;if(isNaN(m))return toast('Poné el monto.');if(!d)return toast('Poné la fecha.');
-    p.monto=m;p.date=d;p.size=U.sheet.size||p.size;syncPack(p.sid);U.sheet=null;rerender();toast('Pago corregido.')},
+    p.monto=m;p.date=d;p.size=U.sheet.size??p.size;if(p.size===0)p.pend=false;syncPack(p.sid);U.sheet=null;rerender();toast('Pago corregido.')},
   delPay(e){const p=D.pays.find(x=>x.id===e.dataset.id);const st=stu(p.sid);
-    U.sheet={type:'confirm',title:'¿Borrar este pago?',text:(st?fullName(st)+' · ':'')+fd(p.date)+' · pack '+p.size+' · '+money(p.monto)+'. Si era su último pago, su pack vuelve al pago anterior.',yes:'Borrar',run:'delPayGo',id:p.id};rerender()},
-  saveRenew(){const st=stu(U.sheet.sid);const size=U.sheet.size||st.pack.size;const m=+document.getElementById('rn-m').value||0;const d=document.getElementById('rn-d').value||TODAY;
-    st.pack={size,start:d};D.pays.push({id:nid(),sid:st.id,date:d,size,monto:m});U.sheet=null;rerender();toast('Pago guardado. Pack de '+size+' hasta el '+fd(add(d,30))+'.')},
+    U.sheet={type:'confirm',title:'¿Borrar este pago?',text:(st?fullName(st)+' · ':'')+fd(p.date)+' · '+packLabel(p.size).toLowerCase()+' · '+money(p.monto)+'. Si era su último pago, su pack vuelve al pago anterior.',yes:'Borrar',run:'delPayGo',id:p.id};rerender()},
+  saveRenew(){const sh=U.sheet;const st=stu(sh.sid);const size=sh.size??st.pack.size;const mEl=document.getElementById('rn-m');const m=size===0?0:(+(mEl&&mEl.value)||0);const d=document.getElementById('rn-d').value||TODAY;
+    const pend=size!==0&&!!sh.debe;
+    st.pack={size,start:d};const rec={id:nid(),sid:st.id,date:d,size,monto:m};if(pend)rec.pend=true;D.pays.push(rec);U.sheet=null;rerender();
+    toast(size===0?'Plan Amigos activado.':(pend?'Pack registrado como deuda desde el '+fd(d)+'.':'Pago guardado. Pack de '+size+' hasta el '+fd(add(d,30))+'.'))},
+  renSize(e){const d=document.getElementById('rn-d');const keep=d?d.value:null;U.sheet.size=+e.dataset.n;rerender();const d2=document.getElementById('rn-d');if(d2&&keep)d2.value=keep},
+  tgDebe(){const ids=['ns-n','ns-a','ns-d','ns-b','ns-p','ns-h','ns-f','ns-m','rn-m','rn-d'];const keep={};ids.forEach(i=>{const el=document.getElementById(i);if(el&&el.value!==undefined&&document.body.contains&&el.tagName)keep[i]=el.value});
+    U.sheet.debe=!U.sheet.debe;rerender();Object.entries(keep).forEach(([i,v])=>{const el=document.getElementById(i);if(el&&el.tagName)el.value=v})},
+  cobrar(e){U.sheet={type:'cobrar',id:e.dataset.id};rerender()},
+  saveCobro(){const p=D.pays.find(x=>x.id===U.sheet.id);if(!p){U.sheet=null;return rerender()}const m=parseFloat(document.getElementById('cb-m').value);if(isNaN(m))return toast('Poné el monto cobrado.');
+    p.monto=m;p.paidAt=document.getElementById('cb-d').value||TODAY;delete p.pend;U.sheet=null;rerender();toast('Cobrado: '+money(m)+'.')},
+  alSort(e){U.alSort=e.dataset.k;rerender()},
   newStudent(){U.sheet={type:'new',size:12};rerender()},
   nsSize(e){const ids=['ns-n','ns-a','ns-d','ns-b','ns-p','ns-h','ns-f'];const keep=ids.map(i=>document.getElementById(i).value);U.sheet.size=+e.dataset.n;rerender();
     ids.forEach((i,j)=>document.getElementById(i).value=keep[j])},
   saveNew(){const n=document.getElementById('ns-n').value.trim(),a=document.getElementById('ns-a').value.trim();if(!n||!a)return toast('Falta nombre o apellido.');
     if(D.students.some(s=>norm(s.nombre+s.apellido)===norm(n+a)))return toast('Ya existe un alumno con ese nombre y apellido.');
-    const size=U.sheet.size||12;const d=document.getElementById('ns-f').value||TODAY;const id=nid();
+    const size=U.sheet.size??12;const d=document.getElementById('ns-f').value||TODAY;const id=nid();const pend=size!==0&&!!U.sheet.debe;const mEl=document.getElementById('ns-m');
     D.students.push({id,nombre:n,apellido:a,disc:document.getElementById('ns-d').value,nac:document.getElementById('ns-b').value||null,peso:parseFloat(document.getElementById('ns-p').value)||null,altura:parseFloat(document.getElementById('ns-h').value)||null,stats:Object.fromEntries([...STATS,...STATS_F].map(([k])=>[k,5])),checks:[],pack:{size,start:d},base:{},plan:{weeks:emptyWeeks(),repeat:true,month:TODAY.slice(0,7)},notes:{},records:[]});
-    D.pays.push({id:nid(),sid:id,date:d,size,monto:+document.getElementById('ns-m').value||0});U.sheet=null;U.prof=id;go();toast('Alumno creado. Clave: '+norm(n+a))},
+    const rec={id:nid(),sid:id,date:d,size,monto:size===0?0:(+(mEl&&mEl.value)||0)};if(pend)rec.pend=true;D.pays.push(rec);U.sheet=null;U.prof=id;U.ptab='res';go();toast('Alumno creado. Clave: '+norm(n+a))},
   addRec(e){const ej=document.getElementById('rec-ej').value.trim(),mk=document.getElementById('rec-mk').value.trim();if(!ej||!mk)return toast('Completá ejercicio y marca.');
     stu(e.dataset.sid).records.push({id:nid(),ej,marca:mk,fecha:TODAY});rerender();toast('Récord guardado.')},
   delRec(e){const st=stu(e.dataset.sid);st.records=st.records.filter(r=>r.id!==e.dataset.id);rerender()},
