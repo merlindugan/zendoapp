@@ -312,6 +312,8 @@ const statsOf=st=>isCombat(st)?STATS:STATS_F;
 const CHK=[['peso','Peso','kg'],['bicR','Bíceps relajado','cm'],['bicC','Bíceps contraído','cm'],['cuad','Cuádriceps','cm'],['cint','Cintura baja','cm'],['gem','Gemelos','cm'],['homb','Hombros','cm'],['glut','Glúteos','cm'],['ante','Antebrazo','cm']];
 const WD=[1,2,3,4,5,6,0];
 const RANGOS=['A+','A','A-','B+','B','B-','C+','C','C-'];
+const CLASES=[['pres','Presionador'],['tec','Técnico'],['tir','Tirador'],['def','Defensivo'],['rup','Rupturista'],['con','Contraatacador']];
+const claseN=k=>(CLASES.find(c=>c[0]===k)||[])[1]||null;
 const isCombat=st=>st.disc==='Boxeo'||st.disc==='MMA'; // orden lunes→domingo
 
 /* ============ FECHAS ============ */
@@ -369,7 +371,7 @@ function seed(){
     weeks.forEach((w,wi)=>{const src=f.plan[wi]||f.plan[f.plan.length-1];[1,2,3,4,5,6].forEach((d,k)=>{w[d]=[src[k%src.length]]})});
     const ex=extra[i];
     const st={id,nombre:f.n,apellido:f.a,disc:f.disc,nac:ex[0],peso:ex[1],altura:alturas[i],stats:Object.fromEntries([...STATS,['agi'],['coo']].map(([k],j)=>[k,ex[2][j%6]])),
-      pack:{size:f.size,start},base:f.base,baseSp:baseSp[i],rango:['','B+','A-','','C+','A','','C'][i]||null,plan:{weeks,repeat:true,month:ym},checks:[],
+      pack:{size:f.size,start},base:f.base,baseSp:baseSp[i],rango:['','B+','A-','','C+','A','','C'][i]||null,clase:['','pres','tec','','con','rup','','tir'][i]||null,logros:({1:[['Primer sparring de 6 rounds',-20],['Sin faltar en todo el mes',-3]],2:[['Primera competencia amateur',-12]],5:[['Ganó su pelea de exhibición',-8],['10 rounds en una sesión',-25],['Primer sparring',-60]]}[i]||[]).map(l=>({id:nid(),texto:l[0],fecha:add(TODAY,l[1])})),plan:{weeks,repeat:true,month:ym},checks:[],
       notes:{},records:f.rec.map(r=>({id:nid(),ej:r[0],marca:r[1],fecha:add(TODAY,r[2])}))};
     if(i<3){st.checks.push({id:nid(),fecha:add(TODAY,-40),peso:ex[1]+1.2,bicR:31,bicC:33.5,cuad:55,cint:80,gem:36,homb:108,glut:96,ante:26.5});
       st.checks.push({id:nid(),fecha:add(TODAY,-(8+i*3)),peso:ex[1],bicR:31.5,bicC:34.5,cuad:56,cint:78.5,gem:36.5,homb:109,glut:97})}
@@ -704,6 +706,14 @@ function checksList(st,admin){
       ${cells?`<div class="ckgrid">${cells}</div>`:'<div class="dim" style="font-size:14px">Sin medidas cargadas.</div>'}
       ${c.notas?`<div class="dim" style="font-size:14px;white-space:pre-wrap">${esc(c.notas)}</div>`:''}</div>`}).join('');
 }
+function logrosBlock(st,admin){
+  const L=[...(st.logros||[])].sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  return `<div style="display:flex;align-items:flex-end;gap:12px"><div class="areabig gold" style="font-size:72px">${L.length}</div><div class="eyebrow" style="padding-bottom:10px">${L.length===1?'logro':'logros'}</div></div>
+  ${L.length?`<div class="rows">${L.map(l=>`<div class="row"><div class="grow"><div class="t">${esc(l.texto)}</div><div class="s">${fd(l.fecha)} ${l.fecha.slice(0,4)}</div></div>${admin?`<button class="btn s x" data-act="delLogro" data-sid="${st.id}" data-id="${l.id}" aria-label="Borrar logro">✕</button>`:''}</div>`).join('')}</div>`:`<div class="empty-s">${admin?'Todavía no tiene logros. Escribí el primero abajo.':'Todavía no tenés logros.'}</div>`}
+  ${admin?`<div class="field"><label for="lg-t">Nuevo logro</label><input class="inp" id="lg-t" placeholder="Ej: primer sparring de 6 rounds"></div>
+  <div class="grid2"><div class="field"><label for="lg-f">Fecha</label><input class="inp mono" type="date" id="lg-f" value="${TODAY}"></div></div>
+  <button class="btn" data-act="addLogro" data-sid="${st.id}">+ Agregar logro</button>`:''}`;
+}
 function resStatusPill(r){
   if(r.status==='pend')return '<span class="pill w">PENDIENTE</span>';
   if(r.status==='rech')return '<span class="pill r">RECHAZADA</span>';
@@ -785,11 +795,12 @@ function vYo(st){
   const pt=points(st);const tot=Object.values(pt).reduce((a,b)=>a+b,0);
   return `<div class="stack">
   <div><div class="eyebrow">${esc(st.disc)}</div><h1 class="h1">${esc(st.nombre)}<br><span class="dim">${esc(st.apellido)}</span></h1>
-  <div class="meta" style="margin-top:8px">${isCombat(st)?`<span class="gold">RANGO ${st.rango||'—'}</span>`:''}${st.nac?`<span>${age(st.nac)} AÑOS</span>`:''}${st.peso?`<span>${st.peso} KG</span>`:''}${st.altura?`<span>${st.altura} CM</span>`:''}</div></div>
+  <div class="meta" style="margin-top:8px">${isCombat(st)?`<span class="gold">RANGO ${st.rango||'—'}</span>`:''}${isCombat(st)&&st.clase?`<span class="gold">${claseN(st.clase).toUpperCase()}</span>`:''}${st.nac?`<span>${age(st.nac)} AÑOS</span>`:''}${st.peso?`<span>${st.peso} KG</span>`:''}${st.altura?`<span>${st.altura} CM</span>`:''}</div></div>
   <section class="slab gold" style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px"><div><div class="eyebrow">Puntos totales</div><div class="areabig">${tot}</div></div><div class="eyebrow" style="text-align:right">+${PTS} por sesión<br>en el área que entrenás</div></section>
   <section class="sec"><div class="sechead"><h2 class="h3">Prioridad por área</h2><span class="eyebrow">Puntos</span></div>${pointsBlock(st)}</section>
   <section class="sec"><div class="sechead"><h2 class="h3">Stats</h2><span class="eyebrow">1 a 10 · las pone el profe</span></div>${radar(st)}</section>
   ${isCombat(st)?`<section class="sec"><div class="sechead"><h2 class="h3">Rounds de sparring</h2></div>${sparBlock(st)}</section>`:''}
+  <section class="sec"><div class="sechead"><h2 class="h3">Logros</h2></div>${logrosBlock(st,false)}</section>
   <section class="sec"><div class="sechead"><h2 class="h3">Récords</h2><span class="eyebrow">Ejercicio · marca</span></div>${recordsList(st,false)}</section>
   <section class="sec"><div class="sechead"><h2 class="h3">Chequeos físicos</h2><span class="eyebrow">▲▼ vs. el anterior</span></div>${checksCharts(st)}${checksList(st,false)}</section>
   </div>`;
@@ -805,15 +816,15 @@ function vAsist(st){
 }
 function vRank(me){
   const by=U.lbBy||'tot';const ym=TODAY.slice(0,7);
-  const opts=[['tot','PUNTOS'],['rango','RANGO'],['sp','ROUNDS'],['asis','ASISTENCIA '+MON[P(TODAY).getMonth()]],...AREAS.map(([k,n])=>[k,n.toUpperCase()])];
-  const val=st=>{if(by==='rango')return st.rango?RANGOS.length-RANGOS.indexOf(st.rango):0;if(by==='tot')return Object.values(points(st)).reduce((a,b)=>a+b,0);if(by==='sp')return sparrings(st);if(by==='asis')return attMonth(st,ym).p;return points(st)[by]};
-  const unit=by==='sp'?'RDS':by==='rango'?'':by==='asis'?'CLASES':'PTS';
+  const opts=[['tot','PUNTOS'],['rango','RANGO'],['sp','ROUNDS'],['logros','LOGROS'],['asis','ASISTENCIA '+MON[P(TODAY).getMonth()]],...AREAS.map(([k,n])=>[k,n.toUpperCase()])];
+  const val=st=>{if(by==='logros')return (st.logros||[]).length;if(by==='rango')return st.rango?RANGOS.length-RANGOS.indexOf(st.rango):0;if(by==='tot')return Object.values(points(st)).reduce((a,b)=>a+b,0);if(by==='sp')return sparrings(st);if(by==='asis')return attMonth(st,ym).p;return points(st)[by]};
+  const unit=by==='logros'?'LOGROS':by==='sp'?'RDS':by==='rango'?'':by==='asis'?'CLASES':'PTS';
   const pool=(by==='rango'||by==='sp')?D.students.filter(isCombat):D.students;
   const show=x=>by==='rango'?(x.st.rango||'—'):x.v;
   const list=pool.map(st=>({st,v:val(st)})).sort((a,b)=>b.v-a.v||a.st.nombre.localeCompare(b.st.nombre));
   let pos=0,prev=null;list.forEach((x,i)=>{if(x.v!==prev){pos=i+1;prev=x.v}x.pos=pos});if(by==='rango')list.forEach(x=>{if(!x.st.rango)x.pos='—'});
   const pod=[list[1],list[0],list[2]].map((x,j)=>x?`<div class="pod p${x.pos<=3?x.pos:3} ${me&&x.st.id===me.id?'me':''}"><div class="pos">${x.pos}</div><div class="nm">${esc(x.st.nombre)}<br>${esc(x.st.apellido)}</div><div class="val">${show(x)}<span class="eyebrow" style="margin-left:4px;color:inherit">${unit}</span></div></div>`:'<div></div>').join('');
-  const rest=list.slice(3).map(x=>`<div class="row lbrow ${me&&x.st.id===me.id?'me':''}"><div class="idx">${x.pos}</div><div class="grow"><div class="t">${esc(fullName(x.st))}${me&&x.st.id===me.id?' <span class="pill g">VOS</span>':''}</div><div class="s">${esc(x.st.disc.toUpperCase())}${x.st.rango&&by!=='rango'?' · RANGO '+x.st.rango:''}</div></div><div class="h3" style="font-size:28px">${show(x)}<span class="eyebrow" style="margin-left:4px">${unit}</span></div></div>`).join('');
+  const rest=list.slice(3).map(x=>`<div class="row lbrow ${me&&x.st.id===me.id?'me':''}"><div class="idx">${x.pos}</div><div class="grow"><div class="t">${esc(fullName(x.st))}${me&&x.st.id===me.id?' <span class="pill g">VOS</span>':''}</div><div class="s">${esc(x.st.disc.toUpperCase())}${x.st.rango&&by!=='rango'?' · RANGO '+x.st.rango:''}${x.st.clase&&isCombat(x.st)?' · '+claseN(x.st.clase).toUpperCase():''}</div></div><div class="h3" style="font-size:28px">${show(x)}<span class="eyebrow" style="margin-left:4px">${unit}</span></div></div>`).join('');
   const mine=me?list.find(x=>x.st.id===me.id):null;
   return `<div class="stack">
   <div><div class="eyebrow">Ranking del gimnasio</div><h1 class="h1">Leaderboard</h1></div>
@@ -925,7 +936,7 @@ function vAlumnos(){
   if(U.prof)return vProfile(stu(U.prof));
   const list=[...D.students].sort((a,b)=>a.nombre.localeCompare(b.nombre)).map(st=>{const p=pack(st);const lp=lastPresent(st);
     const pills=[];if(p.expired)pills.push('<span class="pill r">VENCIDO</span>');else{if(p.dl<=C().alertaVence)pills.push(`<span class="pill w">VENCE ${p.dl}D</span>`);if(p.rem<=C().alertaSesiones)pills.push(`<span class="pill w">QUEDAN ${p.rem}</span>`)}
-    if(!lp||diff(TODAY,lp)>=C().inactivo)pills.push('<span class="pill r">INACTIVO</span>');if(st.rango)pills.unshift(`<span class="pill b">${st.rango}</span>`);
+    if(!lp||diff(TODAY,lp)>=C().inactivo)pills.push('<span class="pill r">INACTIVO</span>');if(st.clase&&isCombat(st))pills.unshift(`<span class="pill w">${claseN(st.clase).toUpperCase()}</span>`);if(st.rango)pills.unshift(`<span class="pill b">${st.rango}</span>`);
     return `<button class="row" style="width:100%;text-align:left" data-act="openProf" data-sid="${st.id}"><div class="idx" style="font-size:32px;width:56px">${p.expired?'—':p.rem}<div class="s mono dim" style="font-size:10px">/${p.size}</div></div><div class="grow"><div class="t" style="font-size:17px">${esc(fullName(st))}</div><div class="s">${esc(st.disc.toUpperCase())} · VENCE ${fd(p.end)}</div><div class="codes" style="margin-top:6px">${pills.join('')}</div></div><span class="dim h3">›</span></button>`}).join('');
   return `<div class="stack">
   <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px"><div><div class="eyebrow">${D.students.length} alumnos</div><h1 class="h1">Alumnos</h1></div><button class="btn g" data-act="newStudent">+ Nuevo</button></div>
@@ -947,7 +958,10 @@ function vProfile(st){
   </section>
   <section class="slab gold" style="display:flex;flex-direction:column;gap:10px"><div class="eyebrow">Esta semana · semana ${weekIdx(TODAY)+1} · hoy: ${planFor(st,TODAY).map(k=>AN[k]).join(', ')||'sin plan'}</div>${miniWeek(st,weeksOf(ym)[weekIdx(TODAY)],false)}<div class="btns"><button class="btn s" style="border-color:var(--goldink)" data-act="planOf" data-sid="${st.id}">Ir a planes</button><button class="btn s" style="border-color:var(--goldink)" data-act="openPlan" data-sid="${st.id}">Notas por día</button></div></section>
   ${isCombat(st)?`<section class="sec"><div class="sechead"><h2 class="h3">Rango</h2><span class="h2 gold">${st.rango||'—'}</span></div>
-    <div class="seg">${RANGOS.map(r=>`<button class="${st.rango===r?'on':''}" data-act="setRango" data-sid="${st.id}" data-r="${r}" style="flex:1 0 auto">${r}</button>`).join('')}</div></section>`:''}
+    <div class="seg">${RANGOS.map(r=>`<button class="${st.rango===r?'on':''}" data-act="setRango" data-sid="${st.id}" data-r="${r}" style="flex:1 0 auto">${r}</button>`).join('')}</div></section>
+  <section class="sec"><div class="sechead"><h2 class="h3">Clase</h2><span class="h3 gold">${claseN(st.clase)||'—'}</span></div>
+    <div class="seg">${CLASES.map(([k,n])=>`<button class="${st.clase===k?'on':''}" data-act="setClase" data-sid="${st.id}" data-k="${k}" style="flex:1 1 45%">${n.toUpperCase()}</button>`).join('')}</div>
+    <div class="eyebrow">Tocá la misma clase para sacarla</div></section>`:''}
   <button class="btn x full" data-act="delStudent" data-sid="${st.id}">Eliminar alumno</button>`,
     stats:()=>`  <section class="sec"><div class="sechead"><h2 class="h3">Stats</h2><span class="eyebrow">1 a 10</span></div>${radar(st)}
     <div class="statgrid">${statsOf(st).map(([k,n])=>`<div class="stp"><span class="nm">${n.toUpperCase()}</span><button data-act="stat" data-sid="${st.id}" data-k="${k}" data-v="-1" aria-label="Bajar ${n}">−</button><span class="v">${(st.stats||{})[k]||0}</span><button data-act="stat" data-sid="${st.id}" data-k="${k}" data-v="1" aria-label="Subir ${n}">+</button></div>`).join('')}</div></section>
@@ -957,6 +971,7 @@ function vProfile(st){
     <div class="grid2"><div class="field"><label for="rec-ej">Ejercicio</label><input class="inp" id="rec-ej" placeholder="Sentadilla"></div><div class="field"><label for="rec-mk">Marca</label><input class="inp" id="rec-mk" placeholder="80 kg"></div></div>
     <button class="btn" data-act="addRec" data-sid="${st.id}">+ Agregar récord</button>
   </section>
+  <section class="sec"><div class="sechead"><h2 class="h3">Logros</h2></div>${logrosBlock(st,true)}</section>
 `,
     asis:()=>`  <section class="sec"><div class="sechead"><h2 class="h3">Asistencia</h2><span class="eyebrow">Últimas 4 semanas</span></div>${attBlock(st)}</section>
   <section class="sec"><div class="sechead"><h2 class="h3">Sesiones del pack</h2><span class="eyebrow">${p.used.length}/${p.size} ${isCombat(st)?' · RDS = rounds de sparring':''}</span></div>${usedList(st,p,true)}</section>
@@ -973,7 +988,7 @@ function vProfile(st){
   }[pt]();
   return `<div class="stack">
   <button class="back" data-act="closeProf">◀ ALUMNOS</button>
-  <div><div class="eyebrow">${esc(st.disc)}${st.rango?' · rango '+st.rango:''}</div><h1 class="h1">${esc(st.nombre)}<br><span class="dim">${esc(st.apellido)}</span></h1>
+  <div><div class="eyebrow">${esc(st.disc)}${st.rango?' · rango '+st.rango:''}${st.clase&&isCombat(st)?' · '+claseN(st.clase):''}</div><h1 class="h1">${esc(st.nombre)}<br><span class="dim">${esc(st.apellido)}</span></h1>
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px"><div class="meta" style="flex:1"><span>${st.nac?age(st.nac)+' AÑOS':'SIN EDAD'}</span><span>${st.peso?st.peso+' KG':'SIN PESO'}</span><span>${st.altura?st.altura+' CM':'SIN ALTURA'}</span><span class="dim">CLAVE: ${norm(st.nombre+st.apellido)}</span></div><button class="btn s" data-act="editStudent" data-sid="${st.id}">Editar datos</button></div></div>
   <div class="lbtabs ptabs">${tabs.map(([k,l])=>`<button class="${pt===k?'on':''}" data-act="ptab" data-k="${k}">${l}</button>`).join('')}</div>
   ${body}
@@ -1176,6 +1191,10 @@ const A={
   togPays(){U.showPays=!U.showPays;rerender()},
   ckM(e){U.ckM=e.dataset.k;rerender()},
   ptab(e){U.ptab=e.dataset.k;rerender()},
+  setClase(e){const st=stu(e.dataset.sid);st.clase=st.clase===e.dataset.k?null:e.dataset.k;rerender()},
+  addLogro(e){const st=stu(e.dataset.sid);const t=document.getElementById('lg-t').value.trim();if(!t)return toast('Escribí el logro.');
+    st.logros=st.logros||[];st.logros.push({id:nid(),texto:t,fecha:document.getElementById('lg-f').value||TODAY});rerender();toast('Logro agregado. Ya tiene '+st.logros.length+'.')},
+  delLogro(e){const st=stu(e.dataset.sid);st.logros=(st.logros||[]).filter(l=>l.id!==e.dataset.id);rerender()},
   setRango(e){const st=stu(e.dataset.sid);st.rango=st.rango===e.dataset.r?null:e.dataset.r;rerender()},
   omit(e){const r=D.res.find(x=>x.id===e.dataset.id);r.omit=true;rerender();toast('Sin marcar. No suma ni descuenta.')},
   goAgenda(e){U.tab='agenda';U.agDay=e.dataset.d;U.calMonth=e.dataset.d.slice(0,7);go()},
