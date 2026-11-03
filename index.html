@@ -516,6 +516,22 @@ function notifBox(student){
     <div class="dim" style="font-size:14px">${student?'Te avisamos en el celular cuando el profe confirma o rechaza tu turno.':'Te avisamos cuando un alumno pide un turno.'}${/iPhone|iPad/.test(navigator.userAgent)?' En iPhone, primero instalá la app con Compartir → Agregar a inicio y abrila desde ahí.':''}</div>
     ${st==='denied'?'<div class="dim" style="font-size:13px">Los avisos están bloqueados. Activalos desde la configuración del navegador para esta página.</div>':`<button class="btn g" data-act="notifOn">Activar avisos</button>`}</div>`;
 }
+/* ---- Instalar la app ---- */
+let installEvt=null;
+const isStandalone=()=>{try{return matchMedia('(display-mode: standalone)').matches||navigator.standalone===true}catch(e){return false}};
+const isIOS=()=>/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+try{window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e;if(!U.role)render()});
+  window.addEventListener('appinstalled',()=>{installEvt=null;toast('ZendoApp instalada. Abrila desde el ícono.');render()})}catch(e){}
+function installBtn(){if(isStandalone())return '';
+  return `<button class="btn full" data-act="install" style="height:52px;font-size:20px">↓ Descargar la app</button>`}
+function installSheet(){
+  const ios=isIOS();
+  const steps=ios?[['Abrí en Safari','Si estás en otra app (WhatsApp, Instagram), tocá los tres puntos y elegí "Abrir en Safari".'],['Tocá Compartir','Es el cuadrado con la flecha hacia arriba, abajo en el centro de la pantalla.'],['Agregar a inicio','Bajá en la lista y tocá "Agregar a inicio". Después, "Agregar".'],['Abrila desde el ícono','Siempre entrá desde el ícono de ZendoApp. Así funcionan los avisos.']]
+    :[['Abrí en Chrome','Si estás en otra app (WhatsApp, Instagram), tocá los tres puntos y elegí "Abrir en Chrome".'],['Menú ⋮','Tocá los tres puntos de arriba a la derecha.'],['Instalar app','Elegí "Instalar app" o "Agregar a pantalla de inicio" y confirmá.'],['Abrila desde el ícono','Siempre entrá desde el ícono de ZendoApp. Así funcionan los avisos.']];
+  return `<div class="eyebrow">${ios?'iPhone':'Android'}</div><h2 class="h2">Descargar ZendoApp</h2>
+    <div class="rows">${steps.map((x,i)=>`<div class="row" style="align-items:flex-start"><div class="idx gold">${i+1}</div><div class="grow"><div class="t">${x[0]}</div><div class="dim" style="font-size:14px;margin-top:2px">${x[1]}</div></div></div>`).join('')}</div>
+    <button class="btn g full" data-act="closeSheet">Entendido</button>`;
+}
 function boot(){
   if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('/sw.js').catch(()=>{});
   if(!LIVE){render();return}
@@ -1192,6 +1208,7 @@ function sheetHTML(){
     body=`<div class="eyebrow">${fdw(sh.d)} · ${sh.h}</div><h2 class="h2">Agregar alumno</h2>
     <div class="rows">${D.students.filter(s=>isAct(s)&&!inSlot.includes(s.id)).map(s=>`<button class="row" style="width:100%;text-align:left" data-act="addSlotGo" data-sid="${s.id}"><div class="grow t">${esc(fullName(s))}</div><span class="pill">${pack(s).amigos?'AMIGOS':'QUEDAN '+pack(s).rem}</span></button>`).join('')}</div>
     <button class="btn x full" data-act="closeSheet">Cancelar</button>`}
+  if(sh.type==='install')body=installSheet();
   if(sh.type==='confirm'){body=`<h2 class="h2">${esc(sh.title)}</h2><div class="dim">${esc(sh.text)}</div><div class="btns"><button class="btn g" data-act="confirmYes">${esc(sh.yes)}</button><button class="btn x" data-act="closeSheet">Cancelar</button></div>`}
   return `<div class="scrim" data-act="scrim"><div class="sheet" role="dialog" aria-modal="true">${body}</div></div>`;
 }
@@ -1215,7 +1232,7 @@ function vLogin(){
   const demo=LIVE?'<div></div>':`<div class="demo"><div class="eyebrow">Modo demo · entrar directo como</div>
     <div class="chips"><button class="chip g" data-act="as" data-r="admin">ADMIN (PROFE)</button>${D.students.map(s=>`<button class="chip" data-act="as" data-r="${s.id}">${esc(fullName(s))}</button>`).join('')}</div>
     <div class="eyebrow" style="color:var(--line)">Falta pegar la configuración de Firebase en config.js</div></div>`;
-  return `<div class="login">${head}${U.adminForm?admin:student}${demo}</div>`;
+  return `<div class="login">${head}<div style="display:flex;flex-direction:column;gap:22px">${U.adminForm?admin:student}${installBtn()}</div>${demo}</div>`;
 }
 
 /* ============ RENDER ============ */
@@ -1223,7 +1240,7 @@ let toastT;
 function toast(msg){clearTimeout(toastT);let el=document.getElementById('toast');if(!el){el=document.createElement('div');el.id='toast';el.className='toast';el.setAttribute('role','status');document.body.appendChild(el)}el.textContent=msg;el.hidden=false;toastT=setTimeout(()=>el.hidden=true,2800)}
 function render(){
   const root=document.getElementById('root');
-  if(!U.role){root.innerHTML=`<div class="app">${vLogin()}</div>`;return}
+  if(!U.role){root.innerHTML=`<div class="app">${vLogin()}</div>${sheetHTML()}`;return}
   if(!isLoaded()){root.innerHTML=`<div class="app"><div class="login"><div class="mark">Zen<br>do<span>//</span><br>App</div><div class="eyebrow">Cargando…</div><div></div></div></div>`;return}
   const admin=U.role==='admin';
   if(admin&&!['panel','agenda','planes','alumnos','rank','ajustes'].includes(U.tab))U.tab='panel';
@@ -1269,6 +1286,8 @@ const A={
     if(em.toLowerCase()!==ADMIN_EMAIL)return err('Ese email no es el del profe.');
     err('Entrando…');try{await fauth.signInWithEmailAndPassword(em,pw)}catch(e){err('Email o contraseña incorrectos.')}},
   adminForm(){U.adminForm=!U.adminForm;render()},
+  async install(){if(installEvt){const ev=installEvt;installEvt=null;try{ev.prompt();await ev.userChoice}catch(e){}render();return}
+    U.sheet={type:'install'};render()},
   as(e){const r=e.dataset.r;if(r==='admin'){U.role='admin';U.tab='panel'}else{U.role='student';U.sid=r;U.tab='hoy'}U.calMonth=TODAY.slice(0,7);U.prof=null;go()},
   async logout(){
     if(LIVE&&fdb&&fauth&&fauth.currentUser){let tok=null;try{tok=localStorage.getItem(KEY+'-tok')}catch(e){}
