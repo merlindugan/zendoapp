@@ -278,6 +278,8 @@ textarea.inp{height:auto;min-height:80px;padding:10px 12px}
 
 /* sheet */
 .scrim{position:fixed;inset:0;z-index:20;background:rgba(5,5,3,.78);display:flex;align-items:flex-end;justify-content:center}
+.sheet.sdebt{background:var(--alert);border-top-color:var(--bone);color:var(--bone)}
+.sheet.sdebt .btn:hover{background:var(--bone);color:var(--alert)}
 .sheet{width:100%;max-width:560px;max-height:88vh;overflow:auto;background:var(--ink);border-top:6px solid var(--gold);padding-block:18px calc(20px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:14px}
 
 /* login */
@@ -516,6 +518,8 @@ function notifBox(student){
     <div class="dim" style="font-size:14px">${student?'Te avisamos en el celular cuando el profe confirma o rechaza tu turno.':'Te avisamos cuando un alumno pide un turno.'}${/iPhone|iPad/.test(navigator.userAgent)?' En iPhone, primero instalá la app con Compartir → Agregar a inicio y abrila desde ahí.':''}</div>
     ${st==='denied'?'<div class="dim" style="font-size:13px">Los avisos están bloqueados. Activalos desde la configuración del navegador para esta página.</div>':`<button class="btn g" data-act="notifOn">Activar avisos</button>`}</div>`;
 }
+// Si vuelve a la app después de 30 minutos, se muestra de nuevo el cartel de cuota
+let hiddenAt=0;document.addEventListener('visibilitychange',()=>{if(document.hidden)hiddenAt=Date.now();else if(hiddenAt&&Date.now()-hiddenAt>30*60e3){U.debtSeen=false;if(U.role==='student')render()}});
 /* ---- Instalar la app ---- */
 let installEvt=null;
 const isStandalone=()=>{try{return matchMedia('(display-mode: standalone)').matches||navigator.standalone===true}catch(e){return false}};
@@ -1209,8 +1213,13 @@ function sheetHTML(){
     <div class="rows">${D.students.filter(s=>isAct(s)&&!inSlot.includes(s.id)).map(s=>`<button class="row" style="width:100%;text-align:left" data-act="addSlotGo" data-sid="${s.id}"><div class="grow t">${esc(fullName(s))}</div><span class="pill">${pack(s).amigos?'AMIGOS':'QUEDAN '+pack(s).rem}</span></button>`).join('')}</div>
     <button class="btn x full" data-act="closeSheet">Cancelar</button>`}
   if(sh.type==='install')body=installSheet();
+  if(sh.type==='debt'){const st=stu(U.sid);const since=st&&owesSince(st);const n=st?owedDays(st):0;const bl=st&&isBlocked(st);
+    body=since?`<div class="eyebrow" style="color:var(--bone)">Aviso del gimnasio</div><h2 class="h2" style="font-size:44px">Cuota<br>pendiente</h2>
+    <div style="font-size:18px;font-weight:700">${n===0?'Tu cuota vence hoy.':'Debés la cuota desde el '+fd(since)+'. Hace '+n+(n===1?' día':' días')+'.'}</div>
+    <div style="font-size:15px">${bl?'Pasaron más de '+BLOQUEO+' días: no podés pedir turnos hasta pagar.':'Si pasan más de '+BLOQUEO+' días sin pagar, se bloquea el pedido de turnos.'} Las clases que tomes mientras tanto se descuentan del próximo pack.</div>
+    <button class="btn full" style="border-color:var(--bone);color:var(--bone)" data-act="closeSheet">Entendido</button>`:'<button class="btn full" data-act="closeSheet">Cerrar</button>'}
   if(sh.type==='confirm'){body=`<h2 class="h2">${esc(sh.title)}</h2><div class="dim">${esc(sh.text)}</div><div class="btns"><button class="btn g" data-act="confirmYes">${esc(sh.yes)}</button><button class="btn x" data-act="closeSheet">Cancelar</button></div>`}
-  return `<div class="scrim" data-act="scrim"><div class="sheet" role="dialog" aria-modal="true">${body}</div></div>`;
+  return `<div class="scrim" data-act="scrim"><div class="sheet ${sh.type==='debt'?'sdebt':''}" role="dialog" aria-modal="true">${body}</div></div>`;
 }
 
 /* ============ LOGIN ============ */
@@ -1249,6 +1258,8 @@ function render(){
   if(!admin&&st&&U.tab==='camino'&&!hasCamino(st))U.tab='hoy';
   if(!admin&&(!st||!isAct(st))){A.logout();toast('Tu usuario está inactivo. Hablá con el profe.');return}
   const tabs=admin?[['panel','PANEL'],['agenda','AGENDA'],['planes','PLANES'],['alumnos','ALUMNOS'],['rank','RANK']]:[['hoy','HOY'],['plan','PLAN'],['turnos','TURNOS'],['asist','ASIST.'],['rank','RANK'],['yo','YO'],...(hasCamino(st)?[['camino','CAMINO']]:[])];
+  // Cartel rojo de cuota pendiente: una vez cada vez que el alumno abre la app
+  if(!admin&&!U.debtSeen&&!U.sheet&&owesSince(st)){U.debtSeen=true;U.sheet={type:'debt'}}
   const pe=admin?pending().length+toMark().length:0;
   let main='';
   if(admin)main={panel:vPanel,agenda:vAgenda,planes:vPlanes,alumnos:vAlumnos,rank:()=>vRank(null),ajustes:vAjustes}[U.tab]();
@@ -1289,7 +1300,7 @@ const A={
   async install(){if(installEvt){const ev=installEvt;installEvt=null;try{ev.prompt();await ev.userChoice}catch(e){}render();return}
     U.sheet={type:'install'};render()},
   as(e){const r=e.dataset.r;if(r==='admin'){U.role='admin';U.tab='panel'}else{U.role='student';U.sid=r;U.tab='hoy'}U.calMonth=TODAY.slice(0,7);U.prof=null;go()},
-  async logout(){
+  async logout(){U.debtSeen=false;
     if(LIVE&&fdb&&fauth&&fauth.currentUser){let tok=null;try{tok=localStorage.getItem(KEY+'-tok')}catch(e){}
       if(tok){try{await fdb.collection('tokens').doc(tok).set({role:'none',sid:null,at:Date.now()})}catch(e){}}}
     U.role=null;U.sid=null;U.prof=null;U.sheet=null;U.tab=null;seenPend=null;
